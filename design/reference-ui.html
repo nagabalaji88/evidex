@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Document QA Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="light"]{
+  --font:'Plus Jakarta Sans', Inter, system-ui, sans-serif;
+  --outer:linear-gradient(125deg,#BFE6FF 0%,#DCD9FF 35%,#F1D4FF 62%,#FFE3EE 80%,#E4FAD2 100%);
+  --frame:rgba(255,255,255,0.50); --frame-b:rgba(255,255,255,0.95); --rail:rgba(255,255,255,0.72);
+  --card:rgba(255,255,255,0.86); --card2:rgba(243,241,255,0.96); --line:rgba(30,32,51,0.11); --line-soft:rgba(30,32,51,0.07);
+  --soft:rgba(30,32,51,0.035); --soft2:rgba(30,32,51,0.06); --track:rgba(30,32,51,0.09); --dim:rgba(30,32,51,0.20); --bar-dim:#B9C3F2;
+  --ink:#1E2033; --muted:#545971; --faint:#5F6479;
+  --accent:#4F4FE0; --accent-soft:rgba(79,79,224,0.12); --accent-line:rgba(79,79,224,0.35); --accent-ink:#3B3BC4;
+  --g1:linear-gradient(135deg,#4646D6 0%,#8A3FD9 100%); --g2:linear-gradient(135deg,#2F62D6 0%,#5B47DD 100%); --g3:linear-gradient(135deg,#17707F 0%,#2F62D6 100%);
+  --good:#16683A; --good-soft:#DFF3E6; --good-line:#A9DBBA; --ok-ic:#1F8A4C; --step-done:#1F8A4C;
+  --amber:#7D4B00; --amber-soft:#FFEFD2; --amber-line:#EBC27A; --amber-mark:#C47A00;
+  --bad:#A3241A; --bad-soft:#FCE5E2; --bad-line:#EBA79F; --bad-ic:#B4261A;
+  --input-bg:#FFFFFF; --input-b:rgba(30,32,51,0.22); --code-bg:rgba(30,32,51,0.045);
+  --ch-a:#5B5BEA; --ch-r:#F0A93B; --ch-e:#D9463A; --ch-text:#545971; --ch-grid:rgba(30,32,51,0.08); --ch-ink:#1E2033;
+  --c-high:#1F8A4C; --c-med:#E3A13A; --c-low:#B9842E; --c-exact:#5B5BEA;
+  --mono:'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+[data-theme="dark"]{
+  --font:'Poppins', system-ui, sans-serif;
+  --outer:linear-gradient(135deg,#24135E 0%,#4A1F7E 40%,#A8466F 78%,#E58955 100%);
+  --frame:#1A1546; --frame-b:#3A3189; --rail:#130E38;
+  --card:#241D5A; --card2:#2C2470; --line:#3A3189; --line-soft:rgba(255,255,255,0.07);
+  --soft:rgba(255,255,255,0.04); --soft2:rgba(255,255,255,0.08); --track:rgba(255,255,255,0.10); --dim:rgba(255,255,255,0.24); --bar-dim:#6F64C9;
+  --ink:#F4F1FF; --muted:#BDB5E6; --faint:#AFA7DA;
+  --accent:#FF8FC5; --accent-soft:rgba(255,143,197,0.16); --accent-line:rgba(255,143,197,0.45); --accent-ink:#FFB3D6;
+  --g1:linear-gradient(135deg,#A72C84 0%,#C7462A 100%); --g2:linear-gradient(135deg,#5233C9 0%,#8E3FC4 100%); --g3:linear-gradient(135deg,#1E6E86 0%,#3A4FC9 100%);
+  --good:#6BE3A8; --good-soft:rgba(107,227,168,0.14); --good-line:rgba(107,227,168,0.40); --ok-ic:#23845A; --step-done:#3A4FC9;
+  --amber:#FFC56E; --amber-soft:rgba(255,197,110,0.14); --amber-line:rgba(255,197,110,0.45); --amber-mark:#E0A23A;
+  --bad:#FF9A8F; --bad-soft:rgba(255,154,143,0.14); --bad-line:rgba(255,154,143,0.45); --bad-ic:#C8392F;
+  --input-bg:#2C2470; --input-b:#4A40A0; --code-bg:#130E38;
+  --ch-a:#FF8FC5; --ch-r:#FFC56E; --ch-e:#FF6B6B; --ch-text:#BDB5E6; --ch-grid:rgba(255,255,255,0.08); --ch-ink:#F4F1FF;
+  --c-high:#6BE3A8; --c-med:#FFC56E; --c-low:#FF9A8F; --c-exact:#8FA8FF;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--outer);background-attachment:fixed;color:var(--ink);font:15px/1.45 var(--font);min-height:100vh}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.55}
+h1,h2,h3,p{margin:0}
+a{color:var(--accent)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- top bar + menu ---------- */
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--line)}
+.top-l{display:flex;align-items:center;gap:12px;min-width:0}
+.menu-btn{width:44px;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--card);display:grid;place-items:center}
+.menu-btn:hover,.menu-btn[aria-expanded="true"]{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.crumb{display:flex;align-items:center;gap:8px;font-size:15px;min-width:0}
+.crumb .app{font-weight:700}
+.crumb .sep{color:var(--faint)}
+.top-r{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--card)}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--good)}
+.role{font-size:12.5px;font-weight:600;color:var(--accent-ink);background:var(--accent-soft);border-radius:999px;padding:4px 10px}
+.tag{font-size:12px;color:var(--muted);background:var(--soft2);border-radius:999px;padding:3px 10px}
+.menu{position:fixed;top:62px;left:12px;z-index:30;width:min(460px,calc(100vw - 24px));background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:0 12px 32px rgba(20,20,18,.12)}
+.menu[hidden]{display:none}
+.menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tile{display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:10px;text-decoration:none;color:var(--ink);border:1px solid transparent;min-height:56px}
+.tile:hover{background:var(--soft);border-color:var(--line)}
+.tile.cur{background:var(--accent-soft);border-color:var(--accent-line)}
+.tile .ti{flex:none;width:36px;height:36px;border-radius:9px;display:grid;place-items:center;background:#F0EFEA;color:var(--ink)}
+.tile.cur .ti{background:var(--accent);color:#fff}
+.tile b{display:block;font-size:14px}
+.tile small{display:block;font-size:12px;color:var(--muted)}
+.sugg-badge{font-size:10.5px;font-weight:600;color:var(--amber);background:var(--amber-soft);border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:1px}
+.menu-foot{font-size:12px;color:var(--muted);padding:8px 10px 2px;border-top:1px solid var(--line-soft);margin-top:6px}
+
+/* ---------- page shell ---------- */
+.page{padding:22px 26px 30px;min-width:0}
+.ph{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.ph h1{font-size:22px;font-weight:700}
+.ph p{font-size:13.5px;color:var(--muted);margin-top:2px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.card h2{font-size:15px;font-weight:600}
+.card .cs{font-size:12.5px;color:var(--muted);margin-top:2px}
+.card-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:14px}
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.stack{display:flex;flex-direction:column;gap:16px}
+@media (max-width:980px){.g2,.g3{grid-template-columns:1fr}}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 14px;border-radius:9px;border:1px solid var(--line);background:var(--card);font-size:13.5px;font-weight:600}
+.btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--g1);border-color:transparent;color:#fff}
+.btn.primary:hover:not(:disabled){color:#fff;filter:brightness(1.08)}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent-ink);font-size:13px;font-weight:500;min-height:28px;text-align:left}
+.linkbtn:hover{text-decoration:underline}
+.lbl{font-size:12px;color:var(--muted);font-weight:500}
+.muted{color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted)}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+@media (max-width:980px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.kpi .k{font-size:12.5px;color:var(--muted);font-weight:500}
+.kpi .v{font-size:28px;font-weight:700;letter-spacing:-.01em;margin-top:2px;font-variant-numeric:tabular-nums}
+.kpi .v small{font-size:14px;font-weight:600;color:var(--muted);margin-left:4px}
+.kpi .s{font-size:12.5px;color:var(--muted)}
+.kpi.good .v{color:var(--good)}
+.kpi.amber .v{color:var(--amber)}
+
+/* charts */
+.hb{display:flex;flex-direction:column;gap:8px}
+.hb-row{display:grid;grid-template-columns:150px 1fr 44px;gap:10px;align-items:center;font-size:13px}
+.hb-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hb-track{height:12px;background:var(--line-soft);border-radius:4px;position:relative}
+.hb-track i{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--accent)}
+.hb-row .n{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.seg{display:flex;height:14px;border-radius:5px;overflow:hidden;gap:2px;margin:6px 0 12px}
+.seg i{display:block}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.lst{list-style:none;margin:0;padding:0}
+.lst li{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-soft);font-size:13.5px}
+.lst li:last-child{border-bottom:0}
+.cnt{font-size:12px;font-weight:600;color:var(--amber);background:var(--amber-soft);border-radius:999px;padding:1px 8px;white-space:nowrap}
+.ram{height:10px;background:var(--line-soft);border-radius:5px;overflow:hidden;margin:6px 0 4px}
+.ram i{display:block;height:100%;background:var(--accent)}
+
+/* tables */
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+th{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.clickable{cursor:pointer}
+tr.clickable:hover td{background:var(--soft)}
+tr.sel td{background:var(--accent-soft)}
+
+/* pills + badges */
+.pill{display:inline-block;font-size:11.5px;font-weight:600;border-radius:999px;padding:2px 9px;border:1px solid;white-space:nowrap}
+.pill.active,.pill.answered,.pill.pass{color:var(--good);background:var(--good-soft);border-color:var(--good-line)}
+.pill.inactive{color:var(--muted);background:var(--soft2);border-color:var(--line)}
+.pill.processing{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-line)}
+.pill.rejected,.pill.error,.pill.fail{color:var(--bad);background:var(--bad-soft);border-color:var(--bad-line)}
+.pill.refused,.pill.skipped,.pill.warn{color:var(--amber);background:var(--amber-soft);border-color:var(--amber-line)}
+.ft{display:inline-grid;place-items:center;min-width:40px;height:22px;border-radius:5px;font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:0 5px}
+.ft.PDF{background:#FCE9E6;color:#9B2B1F}.ft.DOCX{background:#E3ECFB;color:#1A3F91}.ft.XLSX{background:#E4F2E8;color:#1D6F38}
+.ft.CSV{background:#E0F2F1;color:#0F5E59}.ft.MD{background:#EEEDE8;color:#47463F}.ft.JSON{background:#EFE8FB;color:#5B2D9E}
+.ver{font-size:11.5px;font-weight:600;border:1px solid var(--line);border-radius:6px;padding:0 6px;color:var(--muted)}
+
+/* forms */
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:13px;font-weight:600}
+.field .help{font-size:12px;color:var(--muted)}
+.field input[type=text],.field select,.field input[type=number]{height:40px;border:1px solid var(--input-b);border-radius:9px;padding:0 10px;background:var(--card);min-width:0}
+.field input:focus,.field select:focus{outline:2px solid var(--accent-line);border-color:var(--accent)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:600px){.row2{grid-template-columns:1fr}}
+.drop{border:1.5px dashed var(--input-b);border-radius:12px;padding:22px;text-align:center;background:var(--soft);display:flex;flex-direction:column;align-items:center;gap:8px}
+.drop b{font-size:14.5px}
+.try{display:flex;flex-direction:column;gap:8px}
+.try button{display:flex;align-items:center;gap:10px;text-align:left;padding:10px 12px;min-height:50px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.try button:hover:not(:disabled){border-color:var(--accent);background:var(--accent-soft)}
+.try b{display:block;font-size:13.5px}
+.try span span{display:block;font-size:12px;color:var(--muted)}
+
+/* ---------- chat workspace ---------- */
+.ws{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);gap:16px;height:calc(100vh - 32px - 82px - 52px);min-height:580px}
+@media (max-width:1180px){.ws{grid-template-columns:1fr;height:auto}.ws .col{max-height:none}.ws .thread-scroll{max-height:65vh}}
+.col{background:var(--card);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.col-head{padding:14px 16px 10px;border-bottom:1px solid var(--line-soft)}
+.col-head h2{font-size:14.5px;font-weight:600}
+.col-head p{font-size:12.5px;color:var(--muted);margin-top:2px}
+.scroll{overflow-y:auto;min-height:0;flex:1}
+.pad{padding:14px 16px}
+.model-opt{display:flex;flex-direction:column;gap:6px}
+.model-opt label{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.model-opt label.on{border-color:var(--accent);background:var(--accent-soft)}
+.model-opt label.off{opacity:.6;cursor:not-allowed}
+.model-opt input{margin-top:3px;accent-color:var(--accent)}
+.model-opt b{display:block;font-size:13px}
+.model-opt small{display:block;font-size:11.5px;color:var(--muted)}
+.docpick{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.docpick label{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:7px;font-size:13px;cursor:pointer;min-height:36px}
+.docpick label:hover{background:var(--soft)}
+.docpick input{accent-color:var(--accent);width:16px;height:16px}
+.docpick .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.thread{padding:16px;display:flex;flex-direction:column;gap:14px}
+.empty{margin:auto;text-align:center;color:var(--muted);max-width:420px;padding:40px 0;font-size:14px}
+.empty b{display:block;color:var(--ink);font-size:16px;margin-bottom:4px}
+.q{align-self:flex-end;max-width:78%;background:var(--g2);color:#fff;border:0;border-radius:16px 16px 4px 16px;padding:9px 14px}
+.acard{border:1px solid var(--line);border-radius:14px;padding:16px;max-width:680px;width:100%}
+.working{display:flex;align-items:center;gap:12px;max-width:540px}
+.working .t{flex:1;font-size:14px}
+.working .t small{display:block;color:var(--muted);font-size:12.5px}
+.spin{width:18px;height:18px;border-radius:50%;border:2px solid var(--accent-line);border-top-color:var(--accent);animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ans-text{font-size:16.5px;line-height:1.5;margin:4px 0 14px}
+.ans-text sup{font-size:11px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:0 4px;margin-left:2px}
+.conf{border-radius:12px;padding:12px 14px;border:1px solid}
+.conf.high{background:var(--good-soft);border-color:var(--good-line)}
+.conf.med,.conf.low{background:var(--amber-soft);border-color:var(--amber-line)}
+.conf.none{background:var(--soft2);border-color:var(--line)}
+.conf-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.conf-top b{font-size:14px}
+.conf.high .conf-top b{color:var(--good)}
+.conf.med .conf-top b,.conf.low .conf-top b{color:var(--amber)}
+.conf-top span{font:600 13px var(--mono)}
+.meter{position:relative;height:8px;background:var(--track);border-radius:4px;margin:8px 0 6px}
+.meter .fill{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
+.conf.high .fill{background:var(--good)}
+.conf.med .fill,.conf.low .fill{background:var(--amber-mark)}
+.conf.none .fill{background:var(--faint)}
+.meter .thr{position:absolute;top:-4px;bottom:-4px;border-left:2px dashed var(--ink);opacity:.55}
+.scale{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.why{font-size:12.5px;margin-top:6px}
+.checks-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.ck{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;color:var(--good);background:var(--good-soft);border-radius:999px;padding:3px 9px}
+.ckw{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--amber);background:var(--amber-soft);border-radius:999px;padding:3px 9px}
+.evid{margin-top:14px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.evid-head{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--soft);border-bottom:1px solid var(--line-soft);font-size:12.5px;font-weight:500}
+.refn{font-size:11px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:0 5px}
+.evid blockquote{margin:0;padding:12px 14px;font-size:14px;line-height:1.55;color:var(--muted)}
+mark{background:#FFE59A;color:#2A2200;padding:1px 2px;border-radius:3px}
+.ans-foot{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.howbtn{background:none;border:1px solid var(--line);border-radius:8px;padding:6px 12px;min-height:36px;font-size:12.5px;font-weight:600}
+.howbtn:hover,.howbtn.on{border-color:var(--accent);color:var(--accent)}
+.howbtn.on{background:var(--accent-soft)}
+.exact{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--good);background:var(--good-soft);border:1px solid var(--good-line);border-radius:999px;padding:3px 10px}
+pre{margin:0;font:12.5px/1.55 var(--mono);background:var(--code-bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;white-space:pre-wrap;overflow-x:auto}
+.refusal{background:var(--amber-soft);border-color:var(--amber-line)}
+.refusal h3{font-size:14px;color:var(--amber);margin-bottom:4px}
+.refusal p.big{font-size:16.5px;margin-bottom:12px}
+.composer{border-top:1px solid var(--line-soft);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.sugg{display:flex;flex-wrap:wrap;gap:6px}
+.sugg button{font-size:12.5px;padding:6px 11px;min-height:34px;border:1px solid var(--line);border-radius:999px;background:var(--soft)}
+.sugg button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.askrow{display:flex;gap:8px}
+.askrow input{flex:1;min-width:0;height:44px;border:1px solid var(--input-b);border-radius:10px;padding:0 14px}
+.askrow input:focus{outline:2px solid var(--accent-line);border-color:var(--accent)}
+
+/* ---------- pipeline (behind the scenes) ---------- */
+.tr-empty{color:var(--muted);font-size:14px;text-align:center;padding:40px 12px}
+.tr-empty b{display:block;color:var(--ink);font-size:15px;margin-bottom:6px}
+.flow{list-style:none;margin:0;padding:0}
+.step{position:relative;padding-left:34px;padding-bottom:6px}
+.step:not(:last-child)::before{content:'';position:absolute;left:11px;top:30px;bottom:-2px;width:2px;background:var(--line-soft)}
+.step.done:not(:last-child)::before{background:var(--good-line)}
+.dot{position:absolute;left:0;top:6px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--line);background:var(--card);color:var(--faint)}
+.step.active .dot{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.step.active .dot::after{content:'';width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(.5);opacity:.5}}
+.step.done .dot{border-color:var(--step-done);background:var(--step-done);color:#fff}
+.step.failed .dot{border-color:var(--bad);background:var(--bad);color:#fff}
+.step.blocked .dot{border-color:var(--amber-mark);background:var(--amber-mark);color:#fff}
+.step.skipped .dot{border-style:dashed}
+.sh{display:flex;align-items:flex-start;gap:8px;width:100%;text-align:left;background:none;border:0;padding:6px 0;min-height:36px}
+.sh:disabled{cursor:default;opacity:1}
+.sh .tt{flex:1;min-width:0}
+.sh .tt b{display:block;font-size:14px;font-weight:600}
+.sh .tt small{display:block;font-size:11.5px;color:var(--faint);font-family:var(--mono)}
+.sh .sum{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+.step.pending .tt b,.step.skipped .tt b{color:var(--faint);font-weight:500}
+.step.failed .sum{color:var(--bad)}
+.step.blocked .sum{color:var(--amber)}
+.sh .chev{flex:none;margin-top:4px;color:var(--faint);transition:transform .15s}
+.sh[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.sb{margin:4px 0 10px;padding:12px;background:var(--soft);border:1px solid var(--line-soft);border-radius:10px;font-size:13px}
+.sb > * + *{margin-top:8px}
+.checks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.checks li{display:grid;grid-template-columns:20px 110px 1fr;gap:6px;align-items:start}
+.checks .ic{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;color:#fff}
+.checks .ok .ic{background:var(--ok-ic)}.checks .bad .ic{background:var(--bad-ic)}.checks .warn .ic{background:var(--amber-mark)}
+.checks .k{color:var(--muted)}
+.callout{border-radius:8px;padding:8px 10px;font-size:12.5px}
+.callout.bad{background:var(--bad-soft);color:var(--bad)}
+.callout.warn{background:var(--amber-soft);color:var(--amber)}
+.callout.good{background:var(--good-soft);color:var(--good)}
+.callout.info{background:var(--accent-soft);color:var(--accent-ink)}
+.secs{display:flex;flex-wrap:wrap;gap:5px}
+.secs span{font-size:12px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+.secs span em{font-style:normal;color:var(--faint)}
+.cm{display:flex;flex-direction:column;gap:4px}
+.cm-row{display:grid;grid-template-columns:1fr 40px auto;gap:8px;align-items:center;font-size:12.5px}
+.cm-row.hl{font-weight:600}
+.cm-row em{font-style:normal;color:var(--faint);font-size:11.5px}
+.sq{display:flex;gap:3px;flex-wrap:wrap;max-width:200px}
+.sq i{width:11px;height:11px;border-radius:3px;background:var(--bar-dim)}
+.cm-row.hl .sq i{background:var(--accent)}
+.chunk{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px}
+.chunk .meta{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
+.chunk .meta span{font-size:11px;background:var(--accent-soft);color:var(--accent-ink);border-radius:4px;padding:0 6px}
+.chunk p{font-size:12.5px;color:var(--muted);line-height:1.5}
+.emb{display:grid;grid-template-columns:repeat(16,1fr);gap:4px}
+.emb i{aspect-ratio:1;border-radius:3px;background:var(--line)}
+.emb i.on{background:var(--accent)}
+.vs{display:flex;flex-direction:column;gap:6px}
+.vs-row{display:flex;align-items:center;gap:8px;font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.vs-row b{min-width:28px}
+.cands{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+.cands li{display:flex;align-items:center;gap:8px;font-size:12.5px;background:var(--card);border:1px solid var(--line-soft);border-radius:7px;padding:5px 8px}
+.cands li span:first-child{flex:1}
+.via{font-size:11px;color:var(--accent-ink);background:var(--accent-soft);border-radius:4px;padding:0 6px}
+.rr{display:flex;flex-direction:column;gap:7px}
+.rr-row{display:grid;grid-template-columns:128px 1fr 38px;gap:8px;align-items:center;font-size:12.5px}
+.rr-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-row .nm em{font-style:normal;color:var(--faint)}
+.bar{position:relative;height:14px;background:var(--line-soft);border-radius:4px}
+.bar .f{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--bar-dim)}
+.rr-row.sent .bar .f{background:var(--accent)}
+.rr-row.below .bar .f{background:var(--dim)}
+.bar .th{position:absolute;top:-3px;bottom:-3px;border-left:2px dashed var(--ink);opacity:.6}
+.rr-row .sc{font:600 12px var(--mono);text-align:right}
+.cols{display:flex;flex-wrap:wrap;gap:5px}
+.cols span{font:12px var(--mono);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 7px}
+.cols span.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
+.tr-foot{margin-top:6px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line-soft);padding-top:10px}
+
+/* ---------- knowledge base ---------- */
+.kb{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:16px;align-items:start}
+@media (max-width:1080px){.kb{grid-template-columns:1fr}}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.filters input,.filters select{height:40px;border:1px solid var(--input-b);border-radius:9px;padding:0 10px;background:var(--card)}
+.filters input{flex:1;min-width:180px}
+.meta-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}
+@media (max-width:700px){.meta-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.meta-grid div{background:var(--soft);border:1px solid var(--line-soft);border-radius:10px;padding:8px 10px}
+.meta-grid b{display:block;font-size:14px;margin-top:2px}
+.vt{list-style:none;margin:0;padding:0}
+.vt li{position:relative;padding:0 0 14px 26px}
+.vt li::before{content:'';position:absolute;left:7px;top:18px;bottom:0;width:2px;background:var(--line-soft)}
+.vt li:last-child::before{display:none}
+.vt .vd{position:absolute;left:0;top:4px;width:16px;height:16px;border-radius:50%;border:2px solid var(--line);background:var(--card)}
+.vt li.active .vd{border-color:var(--good);background:var(--good)}
+.vt .vh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.vt .vh b{font-size:14px}
+.vt p{font-size:12.5px;color:var(--muted);margin-top:2px}
+.sec-list{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.sec-list li + li{border-top:1px solid var(--line-soft)}
+.sec-list button{display:flex;width:100%;align-items:center;gap:10px;background:none;border:0;padding:9px 12px;text-align:left;min-height:40px;font-size:13.5px}
+.sec-list button:hover{background:var(--soft)}
+.sec-list button .nm{flex:1}
+.sec-list .pv{padding:0 12px 12px;font-size:13px;color:var(--muted);line-height:1.55}
+.h3{font-size:13.5px;font-weight:600;margin:16px 0 8px}
+
+/* ---------- settings ---------- */
+.set{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
+@media (max-width:1080px){.set{grid-template-columns:1fr}}
+.set-sec{display:flex;flex-direction:column;gap:0}
+.srow{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line-soft)}
+.srow:last-child{border-bottom:0}
+@media (max-width:640px){.srow{grid-template-columns:1fr}}
+.srow b{display:block;font-size:13.5px}
+.srow small{display:block;font-size:12px;color:var(--muted)}
+.srow .chg{font-size:10.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px}
+.srow select,.srow input[type=number],.srow input[type=text]{width:100%;height:38px;border:1px solid var(--input-b);border-radius:9px;padding:0 10px;background:var(--card)}
+.range{display:flex;align-items:center;gap:10px}
+.range input{flex:1;accent-color:var(--accent)}
+.range output{font:600 13px var(--mono);min-width:40px;text-align:right}
+.switch{display:inline-flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
+.switch input{width:38px;height:22px;appearance:none;background:var(--dim);border-radius:11px;position:relative;cursor:pointer;transition:background .15s}
+.switch input::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
+.switch input:checked{background:var(--accent)}
+.switch input:checked::after{left:19px}
+.sticky{position:sticky;top:80px}
+
+/* ---------- evaluation ---------- */
+.prog{height:10px;background:var(--line-soft);border-radius:5px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent);transition:width .1s}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.pills button{min-height:36px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:13px}
+.pills button[aria-pressed="true"]{background:var(--g1);border-color:transparent;color:#fff}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1E2033;color:#fff;font-size:13.5px;padding:10px 16px;border-radius:10px;z-index:40;max-width:calc(100vw - 32px)}
+.toast[hidden]{display:none}
+
+[data-theme="dark"] .ft.PDF{background:rgba(255,143,197,0.18);color:#FFB3D6}[data-theme="dark"] .ft.DOCX{background:rgba(120,160,255,0.20);color:#C3D3FF}
+[data-theme="dark"] .ft.XLSX{background:rgba(107,227,168,0.18);color:#9BF0C6}[data-theme="dark"] .ft.CSV{background:rgba(90,220,220,0.18);color:#A6F0F0}
+[data-theme="dark"] .ft.MD{background:rgba(255,255,255,0.12);color:#E2DDFF}[data-theme="dark"] .ft.JSON{background:rgba(190,140,255,0.20);color:#D9BEFF}
+
+/* ---------- Midnight layout shell ---------- */
+.frame{display:flex;flex-wrap:wrap;margin:16px;min-height:calc(100vh - 32px);border-radius:22px;overflow:hidden;background:var(--frame);border:1px solid var(--frame-b)}
+[data-theme="light"] .frame{backdrop-filter:blur(18px)}
+.rail{flex:1 1 78px;max-width:78px;box-sizing:border-box;padding:16px 10px;background:var(--rail);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:6px;transition:max-width .18s}
+.rail.open{flex-basis:236px;max-width:236px;align-items:stretch;padding:16px 12px}
+.rail-top{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.rail-btn{width:46px;height:46px;flex:none;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);display:grid;place-items:center}
+.rail-btn:hover{border-color:var(--accent)}
+.brand{font-size:17px;font-weight:700;white-space:nowrap}
+.ri{display:flex;align-items:center;gap:12px;min-height:46px;width:46px;justify-content:center;border-radius:14px;text-decoration:none;color:var(--faint);font-size:13.5px;font-weight:500;box-sizing:border-box}
+.rail.open .ri{width:auto;justify-content:flex-start;padding:0 13px}
+.ri:hover{background:var(--soft2);color:var(--ink)}
+.ri.cur{background:var(--g1);color:#fff;font-weight:600}
+.ri .ri-l{flex:1;white-space:nowrap}
+.ri .sugg-badge{margin-left:0}
+.rail-sp{flex:1}
+.who{display:flex;align-items:center;gap:10px;border-radius:14px}
+.rail.open .who{padding:8px;background:var(--card)}
+.who .av{width:40px;height:40px;flex:none;border-radius:50%;background:var(--g2);color:#fff;display:grid;place-items:center;font-weight:700}
+.who b{display:block;font-size:13px}.who small{display:block;font-size:11.5px;color:var(--muted)}
+.main{flex:999 1 560px;min-width:0;display:flex;flex-direction:column}
+.hdr{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:16px 26px;border-bottom:1px solid var(--line)}
+.hdr .hk{font-size:12px;color:var(--muted);font-weight:500}
+.hdr h1{margin:0;font-size:21px;font-weight:700}
+.hdr .sp{flex:1}
+.hdr .hsub{font-size:12.5px;color:var(--muted)}
+.mode{display:inline-flex;padding:3px;border-radius:12px;background:var(--card);border:1px solid var(--line)}
+.mode button{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 10px;border:0;border-radius:9px;background:transparent;color:var(--muted);font-size:12.5px}
+.mode button[aria-pressed="true"]{background:var(--g1);color:#fff}
+.ph > div:first-child{display:none}
+.ph{justify-content:flex-end}
+.ph:not(:has(> :nth-child(2))){display:none}
+.kpi.gr1,.kpi.gr2,.kpi.gr3{border:0;color:#fff}
+.kpi.gr1{background:var(--g1)}.kpi.gr2{background:var(--g2)}.kpi.gr3{background:var(--g3)}
+.kpi.gr1 .k,.kpi.gr1 .s,.kpi.gr2 .k,.kpi.gr2 .s,.kpi.gr3 .k,.kpi.gr3 .s,.kpi.gr1 .v small,.kpi.gr2 .v small,.kpi.gr3 .v small{color:rgba(255,255,255,0.92)}
+.btn{text-decoration:none}
+.scope{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:12.5px;color:var(--muted)}
+.scope .sc{display:inline-flex;align-items:center;gap:6px;padding:3px 10px 3px 3px;border-radius:999px;background:var(--card2);border:1px solid var(--line);color:var(--ink);font-size:12px}
+.picker{position:relative}
+.picker summary{list-style:none;cursor:pointer;color:var(--accent-ink);font-weight:600;font-size:12.5px;min-height:30px;display:inline-flex;align-items:center}
+.picker summary::-webkit-details-marker{display:none}
+.pick-pop{position:absolute;z-index:10;top:34px;left:0;width:300px;max-width:80vw;padding:10px;border-radius:14px;background:var(--card2);border:1px solid var(--line);box-shadow:0 14px 30px rgba(0,0,0,0.25)}
+.askrow select{height:44px;border:1px solid var(--input-b);border-radius:10px;padding:0 8px;background:var(--input-bg);color:var(--ink);max-width:190px}
+.askrow input,.field input[type=text],.field select,.field input[type=number],.filters input,.filters select,.srow select,.srow input[type=number],.srow input[type=text]{background:var(--input-bg);color:var(--ink)}
+@media (max-width:760px){.rail,.rail.open{flex-basis:100%;max-width:none;flex-direction:row;flex-wrap:wrap;justify-content:center;align-items:center}.rail-sp{display:none}.frame{margin:8px}}
+</style>
+</head>
+<body>
+<div class="frame">
+  <nav class="rail" id="rail" aria-label="Main"></nav>
+  <div class="main">
+    <header class="hdr">
+      <div><div class="hk">Evidex · local agent</div><h1 id="hdrTitle">Dashboard</h1></div>
+      <span class="sp"></span>
+      <span class="hsub" id="hdrSub"></span>
+      <span class="tag">Dummy data</span>
+      <span class="chip" id="modelChip"><i></i>Ollama · Qwen 2.5 7B</span>
+      <div class="mode" role="group" aria-label="Colour mode">
+        <button type="button" data-theme-set="light" id="modeLight"></button>
+        <button type="button" data-theme-set="dark" id="modeDark"></button>
+      </div>
+    </header>
+    <main class="page" id="page"></main>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================= helpers ================= */
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+  var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  var fmt = function (n) { return n.toLocaleString('en-IN'); };
+  var pct = function (a, b) { return b ? Math.round(a / b * 100) : 0; };
+  function svgI(d, size) {
+    return '<svg viewBox="0 0 24 24" width="' + (size || 20) + '" height="' + (size || 20) + '" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>';
+  }
+  var IC = {
+    menu: svgI('<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>'),
+    dashboard: svgI('<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>'),
+    upload: svgI('<path d="M12 15V4M7.5 8.5L12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/>'),
+    chat: svgI('<path d="M20 12a7.5 7.5 0 0 1-11 6.6L4 20l1.4-4.6A7.5 7.5 0 1 1 20 12z"/>'),
+    kb: svgI('<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/>'),
+    activity: svgI('<path d="M3 12h4l3-7 4 14 3-7h4"/>'),
+    evaluation: svgI('<path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="8.5"/>'),
+    settings: svgI('<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>'),
+    sun: svgI('<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>', 16),
+    moon: svgI('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>', 16)
+  };
+  function sm(d) { return '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="' + d + '" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'; }
+  var I = { ok: sm('M3.5 8.5l3 3 6-7'), x: sm('M4.5 4.5l7 7M11.5 4.5l-7 7'), bang: sm('M8 3.5v5.5M8 12.2v.3'),
+    chev: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M6 3.5l4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' };
+  var TODAY = Date.parse('2026-11-22');
+  function age(d) {
+    var days = Math.round((TODAY - Date.parse(d)) / 864e5);
+    if (days <= 0) return 'Today';
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return days + ' days ago';
+    if (days < 60) return Math.round(days / 7) + ' weeks ago';
+    return Math.round(days / 30) + ' months ago';
+  }
+  function dateTxt(d) {
+    var m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return Number(d.slice(8)) + ' ' + m[Number(d.slice(5, 7)) - 1] + ' ' + d.slice(0, 4);
+  }
+
+  /* ================= sample data ================= */
+  var DEPTS = ['Customer Care', 'Finance', 'Retail Operations', 'Procurement', 'Merchandising', 'Marketing', 'Logistics'];
+  var DOCS = [
+    { id: 'returns', name: 'Returns Policy.pdf', type: 'PDF', dept: 'Customer Care', owner: 'Priya S.', size: '2.4 MB', cites: 64, kind: 'text',
+      versions: [
+        { v: 1, date: '2026-08-12', by: 'Priya S.', status: 'inactive', pages: 11, chunks: 28, note: 'First upload' },
+        { v: 2, date: '2026-10-03', by: 'Priya S.', status: 'active', pages: 12, chunks: 31, note: 'Added the Clothing section' }],
+      sections: [['Overview', 1, 2, 'Who this policy applies to and how returns are handled across stores and online orders.'], ['Scope', 2, 2, 'Covers purchases made in our stores and on our website within India.'], ['Eligibility', 3, 4, 'Items must be returned with proof of purchase. Some categories have their own time limits.'], ['Damaged Goods', 4, 4, 'If an item arrives damaged, contact us with a photo of the damage. Damaged items may be returned within 14 days of delivery.'], ['Clothing', 5, 3, 'Unworn clothing with tags attached may be returned within 30 days of delivery.'], ['Refund method', 5, 4, 'Refunds are issued to the original payment method within 7 working days of receiving the return.'], ['Exchanges', 7, 4, 'Exchanges for a different size or colour are allowed once per item, subject to stock.'], ['Non-returnable items', 9, 5, 'Gift cards, perishable goods and personal care items cannot be returned.'], ['Contact', 11, 3, 'Customer Care can be reached through the help desk in any store.']] },
+    { id: 'q3sales', name: 'Q3 Sales.xlsx', type: 'XLSX', dept: 'Finance', owner: 'Arun K.', size: '380 KB', cites: 23, kind: 'table',
+      versions: [{ v: 1, date: '2026-10-05', by: 'Arun K.', status: 'active', rows: 1200, sheets: 1, note: 'First upload' }],
+      cols: ['store', 'region', 'month', 'product', 'revenue'],
+      sample: [['Coimbatore RS Puram', 'South', 'August', 'Shirts', '4,20,000'], ['Chennai T Nagar', 'South', 'August', 'Footwear', '6,85,000'], ['Pune FC Road', 'West', 'August', 'Shirts', '3,10,000']] },
+    { id: 'opsmanual', name: 'Store Operations Manual.docx', type: 'DOCX', dept: 'Retail Operations', owner: 'Meena R.', size: '5.1 MB', cites: 31, kind: 'text',
+      versions: [
+        { v: 1, date: '2026-06-20', by: 'Meena R.', status: 'inactive', pages: 44, chunks: 88, note: 'First upload' },
+        { v: 2, date: '2026-09-01', by: 'Meena R.', status: 'inactive', pages: 46, chunks: 92, note: 'Updated cash handling' },
+        { v: 3, date: '2026-11-14', by: 'Meena R.', status: 'active', pages: 48, chunks: 96, note: 'Added incident reporting' }],
+      sections: [['Opening and closing', 3, 12, 'Steps for opening and closing a store, including alarm and till checks.'], ['Cash handling', 9, 14, 'How cash is counted, recorded and deposited at the end of each shift.'], ['Stock receiving', 15, 16, 'How deliveries are checked against the purchase order before signing.'], ['Shelf replenishment', 21, 11, 'When and how shelves are refilled from the back store.'], ['Customer service', 27, 13, 'Standards for greeting, helping and following up with customers.'], ['Health and safety', 33, 18, 'Fire exits, first aid and safe lifting rules for all staff.'], ['Incident reporting', 42, 12, 'How to log an incident and who must be informed.']] },
+    { id: 'contracts', name: 'Supplier Contracts.pdf', type: 'PDF', dept: 'Procurement', owner: 'Karthik V.', size: '3.2 MB', cites: 9, kind: 'text',
+      versions: [{ v: 1, date: '2026-09-18', by: 'Karthik V.', status: 'active', pages: 22, chunks: 54, note: 'First upload' }],
+      sections: [['Parties and term', 1, 6, 'Names the supplier and the buyer and sets how long the contract runs.'], ['Pricing and payment terms', 4, 12, 'How prices are set and when invoices must be paid.'], ['Delivery obligations', 8, 10, 'Delivery windows, locations and what happens when a delivery is late.'], ['Quality and returns', 12, 9, 'Quality standards and how faulty stock is returned to the supplier.'], ['Penalties', 16, 8, 'Charges that apply when obligations are not met.'], ['Termination', 19, 9, 'How either side can end the contract and the notice required.']] },
+    { id: 'catalog', name: 'Product Catalog.csv', type: 'CSV', dept: 'Merchandising', owner: 'Divya N.', size: '210 KB', cites: 14, kind: 'table',
+      versions: [
+        { v: 1, date: '2026-07-02', by: 'Divya N.', status: 'inactive', rows: 820, note: 'First upload' },
+        { v: 2, date: '2026-11-20', by: 'Divya N.', status: 'active', rows: 860, note: '40 new products for the festive season' }],
+      cols: ['sku', 'name', 'category', 'price', 'stock'],
+      sample: [['SH-1042', 'Cotton shirt, blue', 'Shirts', '1,299', '84'], ['FW-2210', 'Running shoes', 'Footwear', '3,499', '27'], ['HM-0315', 'Steel water bottle', 'Home', '499', '140']] },
+    { id: 'promos', name: 'Holiday Promotions.md', type: 'MD', dept: 'Marketing', owner: 'Suresh P.', size: '18 KB', cites: 5, kind: 'text',
+      versions: [{ v: 1, date: '2026-11-01', by: 'Suresh P.', status: 'active', pages: 0, chunks: 14, note: 'First upload' }],
+      sections: [['Diwali offers', 1, 4, 'Festive discounts by category and the dates they run.'], ['Weekend deals', 1, 3, 'Saturday and Sunday offers in selected stores.'], ['Partner offers', 1, 3, 'Offers run together with partner banks and wallets.'], ['Terms', 1, 4, 'Conditions that apply to every promotion.']] },
+    { id: 'warehouse', name: 'Warehouse Config.json', type: 'JSON', dept: 'Logistics', owner: 'Arun K.', size: '96 KB', cites: 2, kind: 'table',
+      versions: [{ v: 1, date: '2026-10-28', by: 'Arun K.', status: 'active', rows: 230, note: 'First upload' }],
+      cols: ['zone', 'capacity', 'temperature', 'manager'],
+      sample: [['A1', '1,200 pallets', 'Ambient', 'Ravi M.'], ['C2', '300 pallets', 'Chilled', 'Anita D.'], ['F1', '150 pallets', 'Frozen', 'Ravi M.']] }
+  ];
+  var MODELS = [
+    { id: 'qwen2.5:7b-instruct', label: 'Qwen 2.5 7B Instruct', note: 'Tested in evaluation · default', ok: true, tested: true },
+    { id: 'qwen2.5-coder:7b', label: 'Qwen 2.5 Coder 7B', note: 'Installed · not evaluated for Q&A', ok: true, tested: false },
+    { id: 'gemma:26b', label: 'Gemma 26B', note: 'Installed · needs more than 16 GB RAM', ok: false, tested: false }
+  ];
+  var DAYS = ['Mon 16', 'Tue 17', 'Wed 18', 'Thu 19', 'Fri 20', 'Sat 21', 'Sun 22'];
+  var DAILY = { answered: [14, 19, 22, 17, 21, 16, 12], refused: [3, 4, 2, 5, 3, 3, 2], errors: [1, 0, 1, 0, 2, 1, 0] };
+  var GAPS = [['What is the warranty on electronics?', 3], ['Is there a loyalty points scheme?', 2], ['What are store hours on Diwali?', 2], ['Who approves supplier price changes?', 1]];
+  var ACTIVITY = [
+    ['Today 11:42', 'Question', 'Which store had the most footwear sales in August?', 'answered', 'Exact', 'Q3 Sales.xlsx', '16 s'],
+    ['Today 11:30', 'Question', 'What is the warranty on electronics?', 'refused', '0.12', 'None', '3 s'],
+    ['Today 10:58', 'Question', 'How do I log a slip-and-fall incident?', 'answered', '0.84', 'Store Operations Manual.docx', '19 s'],
+    ['Today 10:15', 'Question', 'What are the late delivery penalties?', 'answered', '0.62', 'Supplier Contracts.pdf', '21 s'],
+    ['Yesterday 18:20', 'Upload', 'Product Catalog.csv v2 · 860 rows', 'answered', '—', 'Merchandising', '41 s'],
+    ['Yesterday 17:05', 'Question', 'Is there a loyalty points scheme?', 'refused', '0.18', 'None', '3 s'],
+    ['Yesterday 16:44', 'Question', 'How many days to return damaged goods?', 'answered', '0.82', 'Returns Policy.pdf', '18 s'],
+    ['Yesterday 15:02', 'Question', 'Total stock of running shoes?', 'error', '—', 'Product Catalog.csv', '30 s'],
+    ['Fri 20 Nov 12:31', 'Question', 'When are weekend deals running?', 'answered', '0.77', 'Holiday Promotions.md', '17 s'],
+    ['Fri 20 Nov 11:09', 'Question', 'Can I get a cash refund?', 'answered', '0.58', 'Returns Policy.pdf', '19 s']
+  ];
+
+  /* ================= state ================= */
+  var DEFAULT_CFG = {
+    model: 'qwen2.5:7b-instruct', embedding: 'nomic-embed-text', reranker: true,
+    temperature: 0.1, num_ctx: 4096, num_predict: 400, keep_alive: '5m',
+    candidate_k: 10, final_k: 3, relevance_threshold: 0.30, vector_threshold: 0.55,
+    conf_high: 0.70, conf_medium: 0.45,
+    chunk_size: 500, chunk_overlap: 50, max_file_mb: 25, ocr: false,
+    claim_check: false, history_turns: 5
+  };
+  var S = {
+    page: 'dashboard', menu: false,
+    cfg: Object.assign({}, DEFAULT_CFG), saved: Object.assign({}, DEFAULT_CFG),
+    model: DEFAULT_CFG.model,
+    sel: {}, msgs: [], traces: {}, chatTrace: null, upTrace: null, busy: false, n: 0,
+    session: { q: 0, answered: 0, refused: 0 },
+    upMeta: { dept: 'Customer Care', owner: 'You' },
+    uploadsLive: [], activityLive: [],
+    kbSel: 'returns', kbOpenSec: null, kbQ: '', kbType: '', kbDept: '',
+    actFilter: 'all', evalRun: null, evalLast: 'Fri 20 Nov, 21:10', lastActive: null,
+    theme: load('dqa-theme', 'dark'), rail: load('dqa-rail', 'closed') === 'open', pickOpen: false
+  };
+  function load(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } }
+  function save(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage unavailable */ } }
+  DOCS.forEach(function (d) { S.sel[d.id] = true; });
+  var uid = function (p) { S.n += 1; return p + S.n; };
+  function doc(id) { return DOCS.find(function (d) { return d.id === id; }); }
+  function activeV(d) { return d.versions.find(function (v) { return v.status === 'active'; }); }
+  function contentTxt(d, v) {
+    v = v || activeV(d);
+    if (d.kind === 'table') return fmt(v.rows) + (d.type === 'JSON' ? ' records' : ' rows');
+    return (v.pages ? v.pages + ' pages · ' : '') + v.chunks + ' chunks';
+  }
+  function modelOf(id) { return MODELS.find(function (m) { return m.id === id; }); }
+
+  /* ================= shared pieces ================= */
+  function checks(list) {
+    return '<ul class="checks">' + list.map(function (c) {
+      var icon = c[0] === 'ok' ? I.ok : c[0] === 'bad' ? I.x : I.bang;
+      return '<li class="' + c[0] + '"><span class="ic">' + icon + '</span><span class="k">' + esc(c[1]) + '</span><span>' + esc(c[2]) + '</span></li>';
+    }).join('') + '</ul>';
+  }
+  function level(s) {
+    if (s >= S.saved.conf_high) return { k: 'high', t: 'High confidence', why: 'The best source closely matches your question.' };
+    if (s >= S.saved.conf_medium) return { k: 'med', t: 'Medium confidence', why: 'The best source is relevant but less direct. Read the evidence before relying on it.' };
+    return { k: 'low', t: 'Low confidence', why: 'The match is weak. Read the evidence before relying on it.' };
+  }
+  function meter(score) {
+    var th = S.saved.relevance_threshold;
+    return '<div class="meter"><div class="fill" style="width:' + Math.round(score * 100) + '%"></div><div class="thr" style="left:' + (th * 100) + '%"></div></div>' +
+      '<div class="scale"><span>0</span><span>refuses below ' + th.toFixed(2) + '</span><span>1.0</span></div>';
+  }
+  function confBox(score) {
+    var L = level(score);
+    return '<div class="conf ' + L.k + '"><div class="conf-top"><b>' + L.t + '</b><span>' + score.toFixed(2) + '</span></div>' + meter(score) +
+      '<p class="why">' + esc(L.why) + ' The score measures how well the best source matches your question.</p></div>';
+  }
+  function highlight(chunk, hls) {
+    var out = esc(chunk);
+    hls.forEach(function (h) { out = out.split(esc(h)).join('<mark>' + esc(h) + '</mark>'); });
+    return out;
+  }
+  function ft(t) { return '<span class="ft ' + t + '">' + t + '</span>'; }
+  function toast(msg) {
+    var t = $('toast'); t.textContent = msg; t.hidden = false;
+    clearTimeout(toast.h); toast.h = setTimeout(function () { t.hidden = true; }, 2600);
+  }
+
+  /* ================= pipeline runner ================= */
+  async function runTrace(tr) {
+    S.traces[tr.id] = tr;
+    S.busy = true;
+    render();
+    for (var i = 0; i < tr.steps.length; i++) {
+      var st = tr.steps[i];
+      if (tr.stopped) { st.status = 'skipped'; continue; }
+      st.status = 'active'; st.open = true; tr.current = i;
+      render();
+      var res;
+      if (st.run) res = await st.run(tr, st); else { await wait(st.ms || 850); res = st.outcome || 'done'; }
+      st.status = res;
+      st.open = !!st.keepOpen || res === 'failed' || res === 'blocked';
+      if (res === 'failed' || res === 'blocked') tr.stopped = true;
+      render();
+      await wait(150);
+    }
+    tr.done = true; tr.current = -1; S.busy = false;
+    if (tr.onDone) tr.onDone();
+    render();
+  }
+  function traceHTML(tr, emptyMsg) {
+    if (!tr) return '<div class="tr-empty"><b>Nothing running yet</b>' + emptyMsg + '</div>';
+    var html = '<ol class="flow">' + tr.steps.map(function (st, i) {
+      var status = st.status || 'pending';
+      var icon = status === 'done' ? I.ok : status === 'failed' ? I.x : status === 'blocked' ? I.bang : '';
+      var sum = '';
+      if (status === 'done' || status === 'failed' || status === 'blocked' || (status === 'active' && typeof st.sum === 'function')) sum = typeof st.sum === 'function' ? st.sum(tr) : (st.sum || '');
+      else if (status === 'active') sum = 'Working…';
+      else if (status === 'skipped') sum = tr.kind === 'question' ? 'Not needed. The agent stopped before this step.' : 'Skipped. The file was stopped earlier.';
+      var hasBody = !!st.body && status !== 'pending' && status !== 'skipped';
+      var open = hasBody && st.open;
+      return '<li class="step ' + status + '" data-i="' + i + '"><span class="dot">' + icon + '</span>' +
+        '<button type="button" class="sh" data-step="' + tr.id + ':' + i + '" aria-expanded="' + open + '"' + (hasBody ? '' : ' disabled') + '>' +
+        '<span class="tt"><b>' + esc(st.title) + '</b><small>' + esc(st.tech || '') + '</small>' + (sum ? '<span class="sum">' + esc(sum) + '</span>' : '') + '</span>' +
+        (hasBody ? '<span class="chev">' + I.chev + '</span>' : '') + '</button>' +
+        (open ? '<div class="sb">' + st.body(tr, st) + '</div>' : '') + '</li>';
+    }).join('') + '</ol>';
+    if (tr.done) {
+      var failed = tr.steps.some(function (s) { return s.status === 'failed'; });
+      var blocked = tr.steps.some(function (s) { return s.status === 'blocked'; });
+      html += '<p class="tr-foot">' + (failed ? 'Stopped: the file was rejected and nothing was indexed.' : blocked ? (tr.kind === 'question' ? 'Stopped early: the answer is not in the selected documents.' : 'Stopped early: nothing needed to change.') : 'All steps finished.') + ' Click any finished step to open or close it.</p>';
+    }
+    return html;
+  }
+
+  /* ================= uploads ================= */
+  var POLICY_SECTIONS = function () { return doc('returns').sections; };
+  function uploadPolicy() {
+    var d = doc('returns'), old = activeV(d), newV = d.versions.length + 1;
+    var meta = Object.assign({}, S.upMeta);
+    var row = { file: 'Returns Policy.pdf', type: 'PDF', v: newV, dept: meta.dept, owner: meta.owner, date: '2026-11-22', size: '2.5 MB', status: 'processing', trace: null };
+    var tr = { id: uid('t'), kind: 'upload', title: 'Returns Policy.pdf', sub: 'New version v' + newV, emb: 0 };
+    row.trace = tr.id;
+    tr.steps = [
+      { title: 'Checking the file', tech: 'validation · duplicate check', ms: 900, sum: 'PDF with readable text, not a duplicate',
+        body: function () { return checks([['ok', 'File type', 'PDF'], ['ok', 'Size', '2.5 MB (limit ' + S.saved.max_file_mb + ' MB)'], ['ok', 'Readable text', 'Yes, it is not a scanned image'], ['ok', 'Duplicate?', 'No. The content fingerprint is new']]); } },
+      { title: 'Reading the text', tech: 'text extraction', ms: 1000, sum: '12 pages, 9 sections found',
+        body: function () { return '<p>Text is pulled out page by page, keeping headings and page numbers so answers can cite them.</p><div class="secs">' + POLICY_SECTIONS().map(function (s) { return '<span>' + esc(s[0]) + ' <em>p.' + s[1] + '</em></span>'; }).join('') + '</div>'; } },
+      { title: 'Splitting into chunks', tech: 'chunking by heading · about ' + S.saved.chunk_size + ' tokens each', ms: 1200, keepOpen: true, sum: '31 chunks, each tagged with its page and section',
+        body: function () {
+          return '<p>Each section is cut into small passages. A passage never mixes two sections.</p><div class="cm">' + POLICY_SECTIONS().map(function (s) {
+            var sq = ''; for (var k = 0; k < s[2]; k++) sq += '<i></i>';
+            return '<div class="cm-row' + (s[0] === 'Damaged Goods' ? ' hl' : '') + '"><span>' + esc(s[0]) + '</span><em>p.' + s[1] + '</em><span class="sq">' + sq + '</span></div>';
+          }).join('') + '</div><div class="chunk"><div class="meta"><span>Chunk 12 of 31</span><span>v' + newV + '</span><span>page 4</span><span>Damaged Goods</span><span>412 tokens</span></div><p>Damaged Goods. If an item arrives damaged, contact us with a photo of the damage. Damaged items may be returned within 14 days of delivery…</p></div>';
+        } },
+      { title: 'Making it searchable', tech: 'embeddings · ' + S.saved.embedding + ' + keyword index', sum: function (t) { return t.emb + ' of 31 chunks indexed'; },
+        run: async function (t) { for (var n = 1; n <= 31; n++) { t.emb = n; render(); await wait(70); } return 'done'; },
+        body: function (t) { var g = ''; for (var k = 0; k < 31; k++) g += '<i class="' + (k < t.emb ? 'on' : '') + '"></i>'; return '<div class="emb">' + g + '</div><p>Each chunk is turned into numbers that capture its meaning, so a question can find it even with different words. A keyword index is built too, for exact terms.</p>'; } },
+      { title: 'Switching to the new version', tech: 'atomic activation', ms: 1000, keepOpen: true, sum: 'v' + newV + ' is live, v' + old.v + ' kept for rollback',
+        body: function (t, st) {
+          var done = st.status === 'done';
+          return '<div class="vs"><div class="vs-row"><b>v' + newV + '</b><span class="pill processing">Ready</span><span class="muted">→</span><span class="pill ' + (done ? 'active' : 'processing') + '">' + (done ? 'Active' : 'Switching…') + '</span></div>' +
+            '<div class="vs-row"><b>v' + old.v + '</b><span class="pill active">Active</span><span class="muted">→</span><span class="pill ' + (done ? 'inactive' : 'active') + '">' + (done ? 'Inactive' : 'Still active') + '</span></div></div>' +
+            '<p>Both changes happen in one step, so a question never sees a half-ready version.</p>';
+        } },
+      { title: 'Ready for questions', tech: 'done', ms: 300, keepOpen: true, sum: 'Returns Policy v' + newV + ': 12 pages, 31 chunks',
+        body: function () { return '<div class="callout good">Returns Policy.pdf v' + newV + ' is ready and listed in the Knowledge base. Questions now search v' + newV + ' only.</div>'; } }
+    ];
+    tr.onDone = function () {
+      old.status = 'inactive';
+      d.versions.push({ v: newV, date: '2026-11-22', by: meta.owner, status: 'active', pages: 12, chunks: 31, note: 'Uploaded from this session' });
+      row.status = 'active';
+      S.activityLive.unshift(['Just now', 'Upload', 'Returns Policy.pdf v' + newV + ' · 31 chunks', 'answered', '—', meta.dept, '8 s']);
+    };
+    S.uploadsLive.unshift(row); S.upTrace = tr.id;
+    runTrace(tr);
+  }
+  function uploadDuplicate() {
+    var row = { file: 'Q3 Sales.xlsx', type: 'XLSX', v: 1, dept: S.upMeta.dept, owner: S.upMeta.owner, date: '2026-11-22', size: '380 KB', status: 'skipped', trace: null };
+    var tr = { id: uid('t'), kind: 'upload', title: 'Q3 Sales.xlsx', sub: 'Same file as one already indexed' };
+    row.trace = tr.id;
+    tr.steps = [
+      { title: 'Checking the file', tech: 'validation · duplicate check', ms: 1100, outcome: 'blocked', sum: 'Already in the knowledge base, nothing re-processed',
+        body: function () { return checks([['ok', 'File type', 'Excel workbook (.xlsx)'], ['ok', 'Size', '380 KB'], ['warn', 'Duplicate?', 'Yes. The fingerprint matches Q3 Sales.xlsx v1']]) + '<p class="callout warn">This exact file is already indexed, so it was skipped. Q3 Sales.xlsx v1 stays active.</p>'; } },
+      { title: 'Loading the sheet into a table', tech: 'SQLite' }, { title: 'Making rows searchable', tech: 'embeddings' }];
+    S.uploadsLive.unshift(row); S.upTrace = tr.id;
+    runTrace(tr);
+  }
+  function uploadScanned() {
+    var row = { file: 'Scanned invoice.pdf', type: 'PDF', v: 1, dept: S.upMeta.dept, owner: S.upMeta.owner, date: '2026-11-22', size: '1.1 MB', status: 'processing', trace: null };
+    var tr = { id: uid('t'), kind: 'upload', title: 'Scanned invoice.pdf', sub: 'A PDF made from a scanned image' };
+    row.trace = tr.id;
+    tr.steps = [
+      { title: 'Checking the file', tech: 'validation · duplicate check', ms: 1100, outcome: 'failed', sum: 'Rejected: no readable text',
+        body: function () { return checks([['ok', 'File type', 'PDF'], ['ok', 'Size', '1.1 MB'], ['bad', 'Readable text', 'None. Every page is an image']]) + '<p class="callout bad">This PDF appears to be scanned and has no text layer. Upload a text-based PDF, or turn on OCR in Settings (slow).</p>'; } },
+      { title: 'Reading the text', tech: 'text extraction' }, { title: 'Splitting into chunks', tech: 'chunking' }, { title: 'Making it searchable', tech: 'embeddings' }];
+    tr.onDone = function () { row.status = 'rejected'; };
+    S.uploadsLive.unshift(row); S.upTrace = tr.id;
+    runTrace(tr);
+  }
+
+  /* ================= questions ================= */
+  var QD = {
+    text: { doc: 'returns', cands: [['Damaged Goods', 4, 'meaning + keyword'], ['Refund method', 5, 'meaning'], ['Eligibility', 3, 'meaning'], ['Scope', 2, 'keyword'], ['Exchanges', 7, 'meaning']],
+      scores: [0.82, 0.41, 0.33, 0.19, 0.12], raw: 'Damaged goods can be returned within 14 days of delivery. [S4]',
+      answer: 'Damaged goods can be returned within 14 days of delivery.',
+      ev: { sec: 'Damaged Goods', page: 4, chunk: 'If an item arrives damaged, contact us with a photo of the damage. Damaged items may be returned within 14 days of delivery. We cover return shipping for damaged items.', hl: ['Damaged items may be returned within 14 days of delivery.'] },
+      checks: [['ok', 'Source tag', '[S4] was one of the passages given to the model'], ['ok', 'Quote', 'Found word for word on page 4'], ['ok', 'Numbers', '“14” appears in the source']], secs: 18 },
+    followup: { doc: 'returns', rewrite: 'How many days does a customer have to return clothing?',
+      cands: [['Clothing', 5, 'meaning + keyword'], ['Damaged Goods', 4, 'meaning'], ['Eligibility', 3, 'meaning'], ['Exchanges', 7, 'keyword'], ['Non-returnable items', 9, 'meaning']],
+      scores: [0.79, 0.44, 0.36, 0.22, 0.15], raw: 'Unworn clothing can be returned within 30 days of delivery, with tags attached. [S2]',
+      answer: 'Unworn clothing can be returned within 30 days of delivery, with tags attached.',
+      ev: { sec: 'Clothing', page: 5, chunk: 'Unworn clothing with tags attached may be returned within 30 days of delivery. Worn or washed items cannot be returned.', hl: ['Unworn clothing with tags attached may be returned within 30 days of delivery.'] },
+      checks: [['ok', 'Source tag', '[S2] was one of the passages given to the model'], ['ok', 'Quote', 'Found word for word on page 5'], ['ok', 'Numbers', '“30” appears in the source']], secs: 17 },
+    medium: { doc: 'returns', cands: [['Refund method', 5, 'meaning + keyword'], ['Eligibility', 3, 'meaning'], ['Damaged Goods', 4, 'meaning'], ['Exchanges', 7, 'meaning'], ['Contact', 11, 'keyword']],
+      scores: [0.58, 0.37, 0.22, 0.17, 0.09], raw: 'Only if you paid in cash. [S7] Other refunds go back to the original payment method within 7 working days. [S6]',
+      answer: 'Only if you paid in cash. Other refunds go back to the original payment method within 7 working days.',
+      ev: { sec: 'Refund method', page: 5, chunk: 'Refunds are issued to the original payment method within 7 working days of receiving the return. Cash refunds are given only for purchases paid in cash.', hl: ['Refunds are issued to the original payment method within 7 working days of receiving the return.', 'Cash refunds are given only for purchases paid in cash.'] },
+      checks: [['ok', 'Source tags', '[S6] and [S7] were given to the model'], ['ok', 'Quotes', 'Both found word for word on page 5'], ['ok', 'Numbers', '“7” appears in the source']], secs: 19 },
+    refusal: { doc: null, cands: [['Exchanges', 7, 'meaning'], ['Non-returnable items', 9, 'meaning'], ['Damaged Goods', 4, 'keyword'], ['Contact', 11, 'meaning'], ['Scope', 2, 'meaning']], scores: [0.12, 0.10, 0.08, 0.06, 0.04], secs: 3 }
+  };
+  var SUGGEST = ['How many days to return damaged goods?', 'What about clothing?', 'Can I get a cash refund?', 'Which region had the highest revenue in August?', 'What is the warranty on electronics?'];
+  function classify(q) {
+    var t = q.toLowerCase();
+    if (/clothing|what about/.test(t)) return 'followup';
+    if (/cash|refund/.test(t)) return 'medium';
+    if (/damag|return/.test(t)) return 'text';
+    if (/revenue|sales|total|highest|region|sum|average|count/.test(t)) return 'sql';
+    return 'refusal';
+  }
+  function selectedTextDocs() { return DOCS.filter(function (d) { return S.sel[d.id] && d.kind === 'text'; }); }
+  function ask(raw) {
+    var q = (raw || '').trim();
+    if (!q || S.busy) return;
+    var key = classify(q);
+    var target = key === 'sql' ? 'q3sales' : key === 'refusal' ? null : 'returns';
+    var outOfScope = target && !S.sel[target];
+    S.msgs.push({ type: 'q', text: q });
+    S.session.q += 1;
+    if (key === 'sql' && !outOfScope) return askSql(q);
+    var d = outOfScope ? QD.refusal : QD[key];
+    var model = modelOf(S.model);
+    var best = d.scores[0], pass = best >= S.saved.relevance_threshold;
+    var dd = doc('returns'), ver = activeV(dd).v;
+    var tr = { id: uid('t'), kind: 'question', title: 'Answering a question', sub: '“' + q + '”' };
+    var tdocs = selectedTextDocs();
+    var chunks = tdocs.reduce(function (a, x) { return a + activeV(x).chunks; }, 0);
+    var steps = [];
+    if (d.rewrite) steps.push({ title: 'Using the conversation', tech: 'follow-up rewrite', ms: 900, sum: 'Rewritten as a full question',
+      body: function () { return '<p>“' + esc(q) + '” only makes sense with the earlier question, so it is rewritten before searching:</p><p class="callout info">' + esc(d.rewrite) + '</p>'; } });
+    steps.push({ title: 'Understanding the question', tech: 'routing rules · no AI call', ms: 700, sum: 'A lookup, so search the documents',
+      body: function () { return checks([['ok', 'Type', 'Lookup or explanation'], ['ok', 'Why', 'No calculation words like total, highest or average'], ['ok', 'Route', 'Search the text of the selected documents']]); } });
+    steps.push({ title: 'Finding candidate passages', tech: 'search by meaning + keywords', ms: 1000, sum: '10 candidates from ' + tdocs.length + ' selected documents',
+      body: function () {
+        return '<p>Searched ' + chunks + ' chunks in ' + tdocs.length + ' selected text documents, latest versions only.' + (outOfScope ? ' <b>Returns Policy.pdf is not selected</b>, so it was not searched.' : '') + '</p>' +
+          '<ul class="cands">' + d.cands.map(function (c) { return '<li><span>' + esc(c[0]) + ' · p.' + c[1] + '</span><span class="via">' + esc(c[2]) + '</span></li>'; }).join('') + '<li><span class="muted">+ 5 more</span></li></ul>';
+      } });
+    steps.push({ title: 'Ranking by relevance', tech: S.saved.reranker ? 'reranker · bge-reranker-base' : 'vector similarity (reranker off)', ms: 1200, keepOpen: true, sum: 'Best match ' + best.toFixed(2) + ' · ' + d.cands[0][0],
+      body: function () {
+        var th = S.saved.relevance_threshold;
+        return '<p>Each candidate is read together with the question and scored from 0 to 1.</p><div class="rr">' + d.cands.map(function (c, i) {
+          var s = d.scores[i], cls = s < th ? 'below' : (pass && i < S.saved.final_k ? 'sent' : '');
+          return '<div class="rr-row ' + cls + '"><span class="nm">' + esc(c[0]) + ' <em>p.' + c[1] + '</em></span><span class="bar"><span class="f" style="width:' + Math.round(s * 100) + '%"></span><span class="th" style="left:' + (th * 100) + '%"></span></span><span class="sc">' + s.toFixed(2) + '</span></div>';
+        }).join('') + '</div><div class="legend" style="margin-top:8px">' + (pass ? '<span><i style="background:var(--accent)"></i>Top ' + S.saved.final_k + ', sent to the model</span>' : '') + '<span><i style="background:var(--dim)"></i>Below the threshold</span><span>Dashed line = ' + th.toFixed(2) + ', the minimum to answer</span></div>';
+      } });
+    steps.push({ title: 'Is the answer in the documents?', tech: 'threshold gate', ms: 700, keepOpen: true, outcome: pass ? 'done' : 'blocked',
+      sum: pass ? 'Yes. ' + best.toFixed(2) + ' is above ' + S.saved.relevance_threshold.toFixed(2) : 'No. ' + best.toFixed(2) + ' is below ' + S.saved.relevance_threshold.toFixed(2),
+      body: function () {
+        return pass ? '<p class="callout good">The best match scores ' + best.toFixed(2) + ', so the answer exists. The top passages go to the model.</p>'
+          : '<p class="callout warn">The best match scores only ' + best.toFixed(2) + '. The agent stops here and refuses. The AI model is never asked, so it has nothing to guess from.' + (outOfScope ? ' Tip: Returns Policy.pdf is not in the chosen documents.' : '') + '</p>';
+      } });
+    steps.push({ title: 'Writing the answer', tech: model.label + ' · running locally', ms: 1600, sum: 'Used ' + S.saved.final_k + ' passages and tagged every sentence',
+      body: function () { return '<p>The model sees only the selected passages, split into numbered sentences. It must tag each sentence it writes with its source.</p><p class="lbl">What the model wrote</p><pre>' + esc(d.raw || '') + '</pre>'; } });
+    steps.push({ title: 'Checking the evidence', tech: 'grounding check', ms: 1000, keepOpen: true, sum: (d.checks ? d.checks.length : 3) + ' of ' + (d.checks ? d.checks.length : 3) + ' checks passed',
+      body: function () { return checks(d.checks || []) + '<p>Any sentence that failed would be removed before you see the answer.</p>'; } });
+    steps.push({ title: 'Answer ready', tech: 'done', ms: 300, keepOpen: true, sum: pass ? level(best).t + ' · ' + best.toFixed(2) : '', body: function () { return confBox(best); } });
+    tr.steps = steps;
+    var wm = { type: 'working', trace: tr.id };
+    S.msgs.push(wm); S.chatTrace = tr.id;
+    tr.onDone = function () {
+      var m = pass ? { type: 'answer', trace: tr.id, d: d, ver: ver, best: best, model: model }
+        : { type: 'refusal', trace: tr.id, d: d, best: best, outOfScope: outOfScope };
+      S.msgs.splice(S.msgs.indexOf(wm), 1, m);
+      if (pass) S.session.answered += 1; else S.session.refused += 1;
+      S.activityLive.unshift(['Just now', 'Question', q, pass ? 'answered' : 'refused', best.toFixed(2), pass ? 'Returns Policy.pdf' : 'None', d.secs + ' s']);
+    };
+    runTrace(tr);
+  }
+  function askSql(q) {
+    var model = modelOf(S.model);
+    var tr = { id: uid('t'), kind: 'question', title: 'Answering a question', sub: '“' + q + '”' };
+    var sql = "SELECT region, SUM(revenue) AS total\nFROM q3_sales\nWHERE month = 'August'\nGROUP BY region\nORDER BY total DESC\nLIMIT 1;";
+    tr.steps = [
+      { title: 'Understanding the question', tech: 'routing rules · no AI call', ms: 800, sum: 'A calculation, so use a spreadsheet table',
+        body: function () { return checks([['ok', 'Type', 'Calculation'], ['ok', 'Why', 'Found “highest” plus the column names region and revenue'], ['ok', 'Route', 'Run a query on a table, not a text search']]); } },
+      { title: 'Picking the table', tech: 'schema match', ms: 900, sum: 'Q3 Sales.xlsx · Sheet 1 · 1,200 rows',
+        body: function () { return '<p>Q3 Sales.xlsx · Sheet 1 has every column the question needs.</p><div class="cols"><span>store</span><span class="on">region</span><span class="on">month</span><span>product</span><span class="on">revenue</span></div>'; } },
+      { title: 'Writing the query', tech: model.label + ' · running locally', ms: 1500, keepOpen: true, sum: 'One read-only SELECT',
+        body: function () { return '<p>The model gets the columns, 3 sample rows and 3 example queries, then writes:</p><pre>' + esc(sql) + '</pre>'; } },
+      { title: 'Safety checks', tech: 'SQL validation', ms: 800, keepOpen: true, sum: '4 of 4 checks passed',
+        body: function () { return checks([['ok', 'One statement', 'A single SELECT'], ['ok', 'No changes', 'No INSERT, UPDATE, DELETE, PRAGMA or ATTACH'], ['ok', 'Real names', 'Table and all 3 columns exist'], ['ok', 'Limits', 'Read-only connection, 5 s timeout, 500 rows max']]); } },
+      { title: 'Running the query', tech: 'SQLite · read-only', ms: 700, sum: '1 row in 42 ms',
+        body: function () { return '<table><thead><tr><th>region</th><th class="num">total</th></tr></thead><tbody><tr><td>South</td><td class="num">1,86,00,000</td></tr></tbody></table>'; } },
+      { title: 'Checking the number', tech: 'grounding check', ms: 600, keepOpen: true, sum: 'Answer matches the query result',
+        body: function () { return checks([['ok', 'Number', '₹1.86 crore equals the result 1,86,00,000'], ['ok', 'Region', '“South” equals the result row']]); } },
+      { title: 'Answer ready', tech: 'done', ms: 300, keepOpen: true, sum: 'Exact: calculated from the data',
+        body: function () { return '<p class="callout good">Exact. This number was calculated from the spreadsheet, not written by the AI, so it has no confidence score.</p>'; } }];
+    var wm = { type: 'working', trace: tr.id };
+    S.msgs.push(wm); S.chatTrace = tr.id;
+    tr.onDone = function () {
+      S.msgs.splice(S.msgs.indexOf(wm), 1, { type: 'sql', trace: tr.id, sql: sql, model: model });
+      S.session.answered += 1;
+      S.activityLive.unshift(['Just now', 'Question', q, 'answered', 'Exact', 'Q3 Sales.xlsx', '16 s']);
+    };
+    runTrace(tr);
+  }
+
+  /* ================= pages ================= */
+  var PAGES = [
+    { id: 'dashboard', title: 'Dashboard', desc: 'Usage, answers and document KPIs' },
+    { id: 'upload', title: 'Upload', desc: 'Add files and watch them processed' },
+    { id: 'chat', title: 'Chat workspace', desc: 'Ask questions with evidence' },
+    { id: 'kb', title: 'Knowledge base', desc: 'Every document, version and section' },
+    { id: 'activity', title: 'Activity log', desc: 'Every question and upload', suggested: true },
+    { id: 'evaluation', title: 'Evaluation', desc: 'Test results against targets', suggested: true },
+    { id: 'settings', title: 'Settings', desc: 'Models, thresholds and limits' }
+  ];
+
+  /* ---------- dashboard ---------- */
+  function pageDashboard() {
+    var activeDocs = DOCS.length;
+    var versions = DOCS.reduce(function (a, d) { return a + d.versions.length; }, 0);
+    var chunks = DOCS.filter(function (d) { return d.kind === 'text'; }).reduce(function (a, d) { return a + activeV(d).chunks; }, 0);
+    var rows = DOCS.filter(function (d) { return d.kind === 'table'; }).reduce(function (a, d) { return a + activeV(d).rows; }, 0);
+    var ans = 121 + S.session.answered, ref = 22 + S.session.refused, err = 5, total = ans + ref + err;
+    var kpi = function (k, v, s, cls) { cls = cls || ({ 'Documents': 'gr2', 'Indexed content': 'gr3', 'Questions asked': 'gr1' })[k] || ''; return '<div class="kpi ' + (cls || '') + '"><div class="k">' + k + '</div><div class="v">' + v + '</div><div class="s">' + s + '</div></div>'; };
+    var html = '<div class="ph"><div><h1>Dashboard</h1><p>Last 7 days · 16 to 22 Nov 2026 · sample numbers</p></div><a class="btn" href="#chat">Ask a question</a></div>';
+    html += '<div class="kpis">' +
+      kpi('Documents', activeDocs, versions + ' versions in total · ' + (versions - activeDocs) + ' kept for rollback') +
+      kpi('Indexed content', fmt(chunks) + '<small>chunks</small>', fmt(rows) + ' table rows from spreadsheets and JSON') +
+      kpi('Questions asked', fmt(total), 'About ' + Math.round(total / 7) + ' a day') +
+      kpi('Answered', pct(ans, total) + '%', fmt(ans) + ' with evidence', 'good') +
+      kpi('Not in documents', pct(ref, total) + '%', fmt(ref) + ' refused instead of guessing', 'amber') +
+      kpi('Errors', err, pct(err, total) + '% · timeouts and failed checks') +
+      kpi('Average response', '17.6<small>s</small>', '95% of answers under 27.4 s') +
+      kpi('Average confidence', '0.71', 'On text answers · High from ' + S.saved.conf_high.toFixed(2)) + '</div>';
+    // questions per day chart
+    var max = 0; DAYS.forEach(function (_, i) { max = Math.max(max, DAILY.answered[i] + DAILY.refused[i] + DAILY.errors[i]); });
+    var W = 640, H = 230, L = 34, B = 196, T = 20, bw = 50, gap = (W - L - 20 - bw * 7) / 6;
+    var y = function (v) { return B - v / 30 * (B - T); };
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Questions per day, answered, refused and errors">';
+    [0, 10, 20, 30].forEach(function (t) { svg += '<line x1="' + L + '" x2="' + (W - 10) + '" y1="' + y(t) + '" y2="' + y(t) + '" style="stroke:var(--ch-grid)"/><text x="' + (L - 8) + '" y="' + (y(t) + 4) + '" text-anchor="end" font-size="11" style="fill:var(--ch-text)">' + t + '</text>'; });
+    DAYS.forEach(function (dname, i) {
+      var x = L + 10 + i * (bw + gap), a = DAILY.answered[i], r = DAILY.refused[i], e = DAILY.errors[i];
+      svg += '<rect x="' + x + '" y="' + y(a) + '" width="' + bw + '" height="' + (B - y(a)) + '" style="fill:var(--ch-a)" rx="2"><title>' + dname + ': ' + a + ' answered</title></rect>';
+      svg += '<rect x="' + x + '" y="' + y(a + r) + '" width="' + bw + '" height="' + (y(a) - y(a + r) - 1) + '" style="fill:var(--ch-r)"><title>' + r + ' refused</title></rect>';
+      if (e) svg += '<rect x="' + x + '" y="' + y(a + r + e) + '" width="' + bw + '" height="' + (y(a + r) - y(a + r + e) - 1) + '" style="fill:var(--ch-e)"><title>' + e + ' errors</title></rect>';
+      svg += '<text x="' + (x + bw / 2) + '" y="' + (y(a + r + e) - 6) + '" text-anchor="middle" font-size="11.5" font-weight="600" style="fill:var(--ch-ink)">' + (a + r + e) + '</text>';
+      svg += '<text x="' + (x + bw / 2) + '" y="' + (B + 18) + '" text-anchor="middle" font-size="11.5" style="fill:var(--ch-text)">' + dname + '</text>';
+    });
+    svg += '</svg>';
+    var typesCount = {}; DOCS.forEach(function (d) { typesCount[d.type] = (typesCount[d.type] || 0) + 1; });
+    var tmax = Math.max.apply(null, Object.keys(typesCount).map(function (k) { return typesCount[k]; }));
+    var cited = DOCS.slice().sort(function (a, b) { return b.cites - a.cites; });
+    var conf = [['High', 78, 'var(--c-high)'], ['Medium', 31, 'var(--c-med)'], ['Low', 4, 'var(--c-low)'], ['Exact (calculated)', 8, 'var(--c-exact)']];
+    var confTot = 121;
+    html += '<div class="g2" style="margin-bottom:16px"><section class="card"><div class="card-h"><div><h2>Questions per day</h2><p class="cs">Most questions are answered; refusals show gaps in the documents</p></div></div>' + svg +
+      '<div class="legend"><span><i style="background:var(--ch-a)"></i>Answered</span><span><i style="background:var(--ch-r)"></i>Not in documents</span><span><i style="background:var(--ch-e)"></i>Errors</span></div></section>' +
+      '<section class="card"><div class="card-h"><div><h2>Answer confidence</h2><p class="cs">Of 121 answered questions this week</p></div></div>' +
+      '<div class="seg" role="img" aria-label="Confidence split">' + conf.map(function (c) { return '<i style="width:' + (c[1] / confTot * 100) + '%;background:' + c[2] + '" title="' + c[0] + ': ' + c[1] + '"></i>'; }).join('') + '</div>' +
+      '<ul class="lst">' + conf.map(function (c) { return '<li><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:' + c[2] + ';margin-right:8px"></i>' + c[0] + '</span><b>' + c[1] + ' <span class="muted" style="font-weight:400">(' + pct(c[1], confTot) + '%)</span></b></li>'; }).join('') + '</ul>' +
+      '<p class="note" style="margin-top:8px">High from ' + S.saved.conf_high.toFixed(2) + ', Medium from ' + S.saved.conf_medium.toFixed(2) + ', refused below ' + S.saved.relevance_threshold.toFixed(2) + '. Calculations are exact, so they have no score.</p></section></div>';
+    html += '<div class="g3" style="margin-bottom:16px"><section class="card"><div class="card-h"><div><h2>Document types</h2><p class="cs">' + activeDocs + ' documents in the knowledge base</p></div></div><div class="hb">' +
+      Object.keys(typesCount).map(function (k) { return '<div class="hb-row"><span class="nm">' + ft(k) + '</span><span class="hb-track"><i style="width:' + (typesCount[k] / tmax * 100) + '%"></i></span><span class="n">' + typesCount[k] + '</span></div>'; }).join('') + '</div></section>' +
+      '<section class="card"><div class="card-h"><div><h2>Most cited documents</h2><p class="cs">Answers that used each document, all time</p></div></div><div class="hb">' +
+      cited.map(function (d) { return '<div class="hb-row"><span class="nm" title="' + esc(d.name) + '">' + esc(d.name) + '</span><span class="hb-track"><i style="width:' + (d.cites / cited[0].cites * 100) + '%"></i></span><span class="n">' + d.cites + '</span></div>'; }).join('') + '</div></section>' +
+      '<section class="card"><div class="card-h"><div><h2>Questions it could not answer</h2><p class="cs">Gaps to fill with a new document</p></div></div><ul class="lst">' +
+      GAPS.map(function (g) { return '<li><span>' + esc(g[0]) + '</span><span class="cnt">' + g[1] + '×</span></li>'; }).join('') + '</ul></section></div>';
+    html += '<section class="card"><div class="card-h"><div><h2>System</h2><p class="cs">i5 13th gen desktop · 16 GB RAM · CPU only</p></div><a class="btn" href="#settings">Settings</a></div><div class="g3">' +
+      '<div>' + checks([['ok', 'Ollama', 'Running at localhost:11434'], ['ok', 'Answer model', modelOf(S.saved.model).label], ['ok', 'Embeddings', S.saved.embedding], [S.saved.reranker ? 'ok' : 'warn', 'Reranker', S.saved.reranker ? 'On' : 'Off']]) + '</div>' +
+      '<div><div class="lbl">Peak memory this week</div><div class="ram"><i style="width:71%"></i></div><p class="note">11.4 GB of 16 GB · 4.6 GB headroom</p></div>' +
+      '<div><div class="lbl">Last evaluation</div><p style="font-size:20px;font-weight:700;margin-top:2px">49 of 50 passed</p><p class="note">' + esc(S.evalLast) + ' · <a href="#evaluation">See results</a></p></div></div></section>';
+    return html;
+  }
+
+  /* ---------- upload ---------- */
+  function pageUpload() {
+    var tr = S.upTrace ? S.traces[S.upTrace] : null;
+    var base = [];
+    DOCS.forEach(function (d) { d.versions.forEach(function (v) { if (v.note !== 'Uploaded from this session') base.push({ file: d.name, type: d.type, v: v.v, dept: d.dept, owner: v.by, date: v.date, size: d.size, status: v.status, trace: null }); }); });
+    base.sort(function (a, b) { return b.date.localeCompare(a.date); });
+    var rows = S.uploadsLive.concat(base).slice(0, 12);
+    var html = '<div class="ph"><div><h1>Upload documents</h1><p>Each file is checked, split, indexed and versioned before it can be searched</p></div><a class="btn" href="#kb">Open knowledge base</a></div>';
+    html += '<div class="g2" style="margin-bottom:16px;align-items:start"><section class="card stack"><div><h2>Add a file</h2><p class="cs">PDF, DOCX, TXT, MD, XLSX, CSV or JSON · up to ' + S.saved.max_file_mb + ' MB</p></div>' +
+      '<div class="drop">' + IC.upload + '<b>Drag a file here</b><span class="note">This sample cannot read real files. Use a sample file below.</span><button type="button" class="btn" data-fake="1">Choose a file</button></div>' +
+      '<div class="row2"><div class="field"><label for="upDept">Department</label><select id="upDept" data-up-meta="dept">' + DEPTS.map(function (d) { return '<option' + (d === S.upMeta.dept ? ' selected' : '') + '>' + d + '</option>'; }).join('') + '</select><span class="help">Who the document belongs to</span></div>' +
+      '<div class="field"><label for="upOwner">Owner</label><input type="text" id="upOwner" data-up-meta="owner" value="' + esc(S.upMeta.owner) + '"><span class="help">Person to ask about this document</span></div></div>' +
+      '<div><div class="lbl" style="margin-bottom:8px">Try a sample file</div><div class="try">' +
+      [['PDF', 'Returns Policy.pdf', 'A new version of an existing PDF', 'policy'], ['XLSX', 'Q3 Sales.xlsx', 'The same file again (a duplicate)', 'dup'], ['PDF', 'Scanned invoice.pdf', 'A scanned image with no text', 'scan']].map(function (it) {
+        return '<button type="button" data-up="' + it[3] + '"' + (S.busy ? ' disabled' : '') + '>' + ft(it[0]) + '<span><b>' + esc(it[1]) + '</b><span>' + esc(it[2]) + '</span></span></button>';
+      }).join('') + '</div></div></section>' +
+      '<section class="card" aria-live="polite"><div class="card-h"><div><h2>' + (tr ? 'Processing ' + esc(tr.title) : 'Processing') + '</h2><p class="cs">' + (tr ? esc(tr.sub) : 'Each step appears here as it runs') + '</p></div></div>' +
+      traceHTML(tr, 'Pick a sample file to watch it being checked, split into chunks, indexed and switched live.') + '</section></div>';
+    html += '<section class="card"><div class="card-h"><div><h2>Recent uploads</h2><p class="cs">Newest first · every version is kept</p></div></div><div class="tw"><table><thead><tr><th>File</th><th>Type</th><th>Version</th><th>Department</th><th>Owner</th><th>Uploaded</th><th class="num">Size</th><th>Status</th><th></th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        var label = { active: 'Active', inactive: 'Inactive', processing: 'Processing', rejected: 'Rejected', skipped: 'Duplicate, skipped' }[r.status];
+        return '<tr><td><b>' + esc(r.file) + '</b></td><td>' + ft(r.type) + '</td><td><span class="ver">v' + r.v + '</span></td><td>' + esc(r.dept) + '</td><td>' + esc(r.owner) + '</td><td title="' + dateTxt(r.date) + '">' + age(r.date) + '</td><td class="num">' + esc(r.size) + '</td><td><span class="pill ' + r.status + '">' + label + '</span></td><td>' + (r.trace ? '<button type="button" class="linkbtn" data-uptrace="' + r.trace + '">Steps</button>' : '') + '</td></tr>';
+      }).join('') + '</tbody></table></div></section>';
+    return html;
+  }
+
+  /* ---------- chat ---------- */
+  function howBtn(id, label) { return '<button type="button" class="howbtn' + (S.chatTrace === id ? ' on' : '') + '" data-chattrace="' + id + '">' + (label || 'How this was answered →') + '</button>'; }
+  function threadHTML() {
+    if (!S.msgs.length) return '<div class="empty"><b>Ask anything about your documents</b>Every answer shows its evidence and a confidence score. Choose which documents to search above. Each step appears on the right.</div>';
+    return S.msgs.map(function (m) {
+      if (m.type === 'q') return '<div class="q">' + esc(m.text) + '</div>';
+      var tr = S.traces[m.trace];
+      if (m.type === 'working') {
+        var st = tr.steps[tr.current] || {};
+        return '<div class="acard working"><span class="spin" aria-hidden="true"></span><span class="t">' + esc(st.title || 'Working') + '…<small>Step ' + (tr.current + 1) + ' of ' + tr.steps.length + '. A full answer takes 15 to 20 s on the i5.</small></span>' + howBtn(tr.id, 'Watch') + '</div>';
+      }
+      var warnModel = m.model && !m.model.tested ? '<span class="ckw">' + I.bang + 'Not evaluated with ' + esc(m.model.label) + '</span>' : '';
+      if (m.type === 'answer') {
+        var d = m.d;
+        return '<article class="acard"><div class="lbl">Answer</div><p class="ans-text">' + esc(d.answer) + '<sup>1</sup></p>' + confBox(m.best) +
+          '<div class="checks-row">' + d.checks.map(function (c) { return '<span class="ck">' + I.ok + esc(c[1]) + ' checked</span>'; }).join('') + warnModel + '</div>' +
+          '<div class="evid"><div class="evid-head"><span class="refn">1</span>Evidence: Returns Policy.pdf · v' + m.ver + ' · page ' + d.ev.page + ' · ' + esc(d.ev.sec) + '</div><blockquote>' + highlight(d.ev.chunk, d.ev.hl) + '</blockquote></div>' +
+          '<div class="ans-foot"><span>' + esc(m.model.label) + ' · ' + d.secs + ' s on the i5 (sped up here)</span>' + howBtn(m.trace) + '</div></article>';
+      }
+      if (m.type === 'sql') {
+        return '<article class="acard"><div class="lbl">Answer · calculated from a table</div><p class="ans-text">South had the highest August revenue: ₹1.86 crore.</p><span class="exact">' + I.ok + 'Exact: calculated from the data, not written by the AI</span>' +
+          '<div class="evid"><div class="evid-head"><span class="refn">1</span>Evidence: Q3 Sales.xlsx · v1 · Sheet 1 · 1,200 rows</div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px"><pre>' + esc(m.sql) + '</pre><table><thead><tr><th>region</th><th class="num">total</th></tr></thead><tbody><tr><td>South</td><td class="num">1,86,00,000</td></tr></tbody></table></div></div>' +
+          '<div class="checks-row"><span class="ck">' + I.ok + 'Read-only query</span><span class="ck">' + I.ok + 'Columns exist</span><span class="ck">' + I.ok + 'Number matches result</span>' + warnModel + '</div>' +
+          '<div class="ans-foot"><span>' + esc(m.model.label) + ' · 16 s on the i5 (sped up here)</span>' + howBtn(m.trace) + '</div></article>';
+      }
+      if (m.type === 'refusal') {
+        var c = m.d.cands[0];
+        return '<article class="acard refusal"><h3>Not in your documents</h3><p class="big">This information is not available in the provided documents.</p>' +
+          '<div class="conf none"><div class="conf-top"><b style="color:var(--ink)">Closest match: ' + esc(c[0]) + ', page ' + c[1] + '</b><span>' + m.best.toFixed(2) + '</span></div>' + meter(m.best) +
+          '<p class="why">Below the minimum. The AI model was never asked, so it could not make anything up.' + (m.outOfScope ? ' Returns Policy.pdf is not in the chosen documents.' : '') + '</p></div>' +
+          '<div class="ans-foot"><span>3 s · no AI call needed</span>' + howBtn(m.trace) + '</div></article>';
+      }
+      return '';
+    }).join('');
+  }
+  function pageChat() {
+    var tr = S.chatTrace ? S.traces[S.chatTrace] : null;
+    var selDocs = DOCS.filter(function (d) { return S.sel[d.id]; });
+    var nSel = selDocs.length;
+    var chips = selDocs.slice(0, 3).map(function (d) { return '<span class="sc">' + ft(d.type) + esc(d.name.replace(/\.[a-z]+$/i, '')) + '</span>'; }).join('');
+    var picker = '<details class="picker"' + (S.pickOpen ? ' open' : '') + '><summary data-pick="1">' + (nSel > 3 ? '+' + (nSel - 3) + ' more · ' : '') + 'Choose documents</summary>' +
+      '<div class="pick-pop"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><b style="font-size:13.5px">Search in</b><button type="button" class="linkbtn" data-selall="1">' + (nSel === DOCS.length ? 'Clear all' : 'Select all') + '</button></div>' +
+      '<p class="note" style="margin:0 0 6px">Only ticked documents are searched.</p><ul class="docpick">' +
+      DOCS.map(function (d) { return '<li><label><input type="checkbox" data-sel="' + d.id + '"' + (S.sel[d.id] ? ' checked' : '') + '>' + ft(d.type) + '<span class="nm" title="' + esc(d.name) + '">' + esc(d.name) + '</span></label></li>'; }).join('') + '</ul></div></details>';
+    var modelSel = '<label for="modelSel" class="sr">Answer model</label><select id="modelSel"' + (S.busy ? ' disabled' : '') + '>' + MODELS.map(function (m) {
+      return '<option value="' + m.id + '"' + (S.model === m.id ? ' selected' : '') + (m.ok ? '' : ' disabled') + '>' + esc(m.label.replace(' Instruct', '')) + (m.tested ? '' : m.ok ? ' (not evaluated)' : ' (needs more RAM)') + '</option>';
+    }).join('') + '</select>';
+    var html = '<div class="ws">';
+    html += '<section class="col" aria-label="Conversation"><div class="col-head"><h2>Ask your documents</h2><p>Answering with ' + esc(modelOf(S.model).label) + ' · searching ' + nSel + ' of ' + DOCS.length + ' documents</p>' +
+      '<div class="scope"><span>Searching</span>' + (nSel ? chips : '<span class="sc" style="padding:3px 10px">No documents selected</span>') + picker + '</div></div>' +
+      '<div class="scroll thread-scroll" id="threadScroll"><div class="thread" aria-live="polite">' + threadHTML() + '</div></div>' +
+      '<div class="composer"><div class="sugg">' + SUGGEST.map(function (s, i) { return '<button type="button" data-ask="' + i + '"' + (S.busy ? ' disabled' : '') + '>' + esc(s) + '</button>'; }).join('') + '</div>' +
+      '<form class="askrow" id="askForm">' + modelSel + '<label for="askInput" class="sr">Your question</label><input id="askInput" autocomplete="off" placeholder="Ask a question about your documents…"><button class="btn primary" type="submit" style="min-height:44px"' + (S.busy ? ' disabled' : '') + '>Send</button></form></div></section>';
+    html += '<aside class="col" aria-label="Behind the scenes"><div class="col-head"><h2>Behind the scenes</h2><p>' + (tr ? esc(tr.sub) : 'Every step the agent takes, as it happens') + '</p></div><div class="scroll" id="trScroll"><div class="pad">' + traceHTML(tr, 'Ask a question to see how it is understood, searched, ranked, answered and checked.') + '</div></div></aside>';
+    return html + '</div>';
+  }
+
+  /* ---------- knowledge base ---------- */
+  function pageKb() {
+    var q = S.kbQ.toLowerCase();
+    var list = DOCS.filter(function (d) {
+      return (!q || d.name.toLowerCase().indexOf(q) >= 0 || d.dept.toLowerCase().indexOf(q) >= 0) && (!S.kbType || d.type === S.kbType) && (!S.kbDept || d.dept === S.kbDept);
+    });
+    var d = doc(S.kbSel) || DOCS[0];
+    var av = activeV(d);
+    var html = '<div class="ph"><div><h1>Knowledge base</h1><p>Everything the agent can answer from, with every version and section</p></div><a class="btn primary" href="#upload">' + IC.upload.replace('width="20" height="20"', 'width="16" height="16"') + 'Upload</a></div>';
+    html += '<div class="kb"><section class="card"><div class="filters"><label class="sr" for="kbQ">Search documents</label><input id="kbQ" type="text" placeholder="Search by name or department" value="' + esc(S.kbQ) + '">' +
+      '<label class="sr" for="kbType">Type</label><select id="kbType"><option value="">All types</option>' + ['PDF', 'DOCX', 'XLSX', 'CSV', 'MD', 'JSON'].map(function (t) { return '<option' + (S.kbType === t ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select>' +
+      '<label class="sr" for="kbDept">Department</label><select id="kbDept"><option value="">All departments</option>' + DEPTS.map(function (t) { return '<option' + (S.kbDept === t ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></div>' +
+      '<div class="tw"><table><thead><tr><th>Document</th><th>Department</th><th>Version</th><th>Content</th><th>Updated</th></tr></thead><tbody>' +
+      (list.length ? list.map(function (x) {
+        var v = activeV(x);
+        return '<tr class="clickable' + (x.id === d.id ? ' sel' : '') + '" data-kb="' + x.id + '" tabindex="0"><td><div style="display:flex;gap:8px;align-items:center">' + ft(x.type) + '<b>' + esc(x.name) + '</b></div></td><td>' + esc(x.dept) + '</td><td><span class="ver">v' + v.v + '</span>' + (x.versions.length > 1 ? ' <span class="note">of ' + x.versions.length + '</span>' : '') + '</td><td>' + contentTxt(x) + '</td><td>' + age(v.date) + '</td></tr>';
+      }).join('') : '<tr><td colspan="5" class="muted">No documents match these filters.</td></tr>') + '</tbody></table></div></section>';
+    html += '<section class="card"><div class="card-h"><div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' + ft(d.type) + '<h2 style="font-size:17px">' + esc(d.name) + '</h2><span class="pill active">Active v' + av.v + '</span></div><p class="cs">' + esc(d.dept) + ' · owned by ' + esc(d.owner) + '</p></div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn" data-toast="Re-indexing ' + esc(d.name) + ' (simulated)">Re-index</button><button type="button" class="btn" data-toast="Download started (simulated)">Download</button></div></div>' +
+      '<div class="meta-grid"><div><span class="lbl">Active version</span><b>v' + av.v + '</b></div><div><span class="lbl">Content</span><b>' + contentTxt(d) + '</b></div><div><span class="lbl">Size</span><b>' + esc(d.size) + '</b></div><div><span class="lbl">Used in answers</span><b>' + d.cites + '</b></div></div>';
+    html += '<div class="h3">Version history</div><ul class="vt">' + d.versions.slice().reverse().map(function (v) {
+      return '<li class="' + v.status + '"><span class="vd"></span><div class="vh"><b>v' + v.v + '</b><span class="pill ' + v.status + '">' + (v.status === 'active' ? 'Active' : 'Inactive') + '</span><span class="note">' + dateTxt(v.date) + ' · ' + esc(v.by) + '</span></div><p>' + esc(v.note) + ' · ' + contentTxt(d, v) + (v.status === 'inactive' ? ' · kept for rollback, never searched' : '') + '</p>' +
+        (v.status === 'inactive' ? '<button type="button" class="linkbtn" data-toast="Rolling back to v' + v.v + ' needs admin approval (simulated)">Roll back to v' + v.v + '</button>' : '') + '</li>';
+    }).join('') + '</ul>';
+    if (d.kind === 'text') {
+      html += '<div class="h3">Sections and chunks <span class="note" style="font-weight:400">· v' + av.v + '</span></div><ul class="sec-list">' + d.sections.map(function (s, i) {
+        var key = d.id + ':' + i, open = S.kbOpenSec === key;
+        return '<li><button type="button" data-sec="' + key + '" aria-expanded="' + open + '"><span class="nm">' + esc(s[0]) + '</span><span class="note">p.' + s[1] + '</span><span class="ver">' + s[2] + ' chunks</span>' + I.chev + '</button>' +
+          (open ? '<div class="pv"><div class="chunk"><div class="meta"><span>' + esc(d.name) + '</span><span>v' + av.v + '</span><span>page ' + s[1] + '</span><span>' + esc(s[0]) + '</span></div><p>' + esc(s[3]) + '…</p></div></div>' : '') + '</li>';
+      }).join('') + '</ul>';
+    } else {
+      html += '<div class="h3">Columns</div><div class="cols">' + d.cols.map(function (c) { return '<span>' + c + '</span>'; }).join('') + '</div>' +
+        '<div class="h3">Sample rows <span class="note" style="font-weight:400">· 3 of ' + fmt(av.rows) + '</span></div><div class="tw"><table><thead><tr>' + d.cols.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        d.sample.map(function (r) { return '<tr>' + r.map(function (c) { return '<td>' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>' +
+        '<p class="note" style="margin-top:8px">Loaded into a local SQLite table. Calculation questions run read-only queries on it.</p>';
+    }
+    return html + '</section></div>';
+  }
+
+  /* ---------- settings ---------- */
+  var SETTINGS = [
+    ['Models', [
+      ['model', 'Answer model', 'Writes answers and SQL. Only tested models are recommended.', 'select', MODELS.map(function (m) { return [m.id, m.label + (m.tested ? ' (tested)' : m.ok ? ' (not evaluated)' : ' (too large)'), !m.ok]; })],
+      ['embedding', 'Embedding model', 'Changing it re-indexes every document.', 'select', [['nomic-embed-text', 'nomic-embed-text'], ['bge-m3', 'bge-m3']]],
+      ['reranker', 'Reranker', 'Re-scores search results. More reliable refusals, about 3 s slower.', 'switch']]],
+    ['Answer generation', [
+      ['temperature', 'Temperature', 'Lower means more consistent, less creative answers.', 'range', 0, 1, 0.05],
+      ['num_ctx', 'Context length', 'How much text the model reads at once. Higher uses more RAM.', 'select', [[2048, '2,048 tokens'], [4096, '4,096 tokens'], [8192, '8,192 tokens']]],
+      ['num_predict', 'Longest answer', 'Maximum tokens the model may write.', 'number'],
+      ['keep_alive', 'Keep model loaded', 'How long an idle model stays in memory.', 'select', [['1m', '1 minute'], ['5m', '5 minutes'], ['30m', '30 minutes']]]]],
+    ['Search and confidence', [
+      ['candidate_k', 'Candidates to rank', 'Passages found before ranking.', 'number'],
+      ['final_k', 'Passages sent to the model', 'Evaluation compares 3 and 5.', 'select', [[3, '3'], [5, '5']]],
+      ['relevance_threshold', 'Refuse below', 'Reranker score under which the agent refuses.', 'range', 0.1, 0.6, 0.01],
+      ['vector_threshold', 'Refuse below (reranker off)', 'Used only when the reranker is switched off.', 'range', 0.3, 0.8, 0.01],
+      ['conf_high', 'High confidence from', 'Score shown as High on answers.', 'range', 0.5, 0.95, 0.01],
+      ['conf_medium', 'Medium confidence from', 'Below this, answers show Low.', 'range', 0.3, 0.7, 0.01],
+      ['history_turns', 'Conversation memory', 'Earlier turns used to understand follow-ups.', 'number']]],
+    ['Documents', [
+      ['chunk_size', 'Chunk size', 'Tokens per chunk. Changing it re-indexes every document.', 'number'],
+      ['chunk_overlap', 'Chunk overlap', 'Tokens shared between neighbouring chunks.', 'number'],
+      ['max_file_mb', 'Largest upload', 'In MB.', 'number'],
+      ['ocr', 'Read scanned PDFs (OCR)', 'Slow on CPU. Off rejects scanned files.', 'switch'],
+      ['claim_check', 'Extra AI claim check', 'A second AI pass per answer. Adds 15 to 30 s.', 'switch']]]
+  ];
+  var RISKY = ['model', 'embedding', 'reranker', 'relevance_threshold', 'vector_threshold', 'final_k', 'chunk_size', 'chunk_overlap', 'num_ctx'];
+  function cfgYaml(c) {
+    return 'models:\n  answer: ' + c.model + '\n  embedding: ' + c.embedding + '\n\nollama:\n  base_url: http://localhost:11434\n  keep_alive: ' + c.keep_alive + '\n  temperature: ' + c.temperature + '\n  num_ctx: ' + c.num_ctx + '\n  num_predict: ' + c.num_predict +
+      '\n\nreranker:\n  enabled: ' + c.reranker + '\n  model: BAAI/bge-reranker-base\n\nretrieval:\n  candidate_k: ' + c.candidate_k + '\n  final_k: ' + c.final_k + '\n  relevance_threshold: ' + Number(c.relevance_threshold).toFixed(2) + '\n  vector_threshold: ' + Number(c.vector_threshold).toFixed(2) + '\n  history_turns: ' + c.history_turns +
+      '\n\nconfidence:\n  high_from: ' + Number(c.conf_high).toFixed(2) + '\n  medium_from: ' + Number(c.conf_medium).toFixed(2) + '\n\ningestion:\n  chunk_size_tokens: ' + c.chunk_size + '\n  chunk_overlap_tokens: ' + c.chunk_overlap + '\n  max_file_mb: ' + c.max_file_mb + '\n  ocr_enabled: ' + c.ocr + '\n\ngrounding:\n  claim_check_enabled: ' + c.claim_check;
+  }
+  function changedKeys() { return Object.keys(S.cfg).filter(function (k) { return String(S.cfg[k]) !== String(S.saved[k]); }); }
+  function pageSettings() {
+    var html = '<div class="ph"><div><h1>Settings</h1><p>Every value is saved to config.yaml · admin only</p></div></div><div class="set"><div class="stack">';
+    SETTINGS.forEach(function (sec) {
+      html += '<section class="card"><h2>' + sec[0] + '</h2><div class="set-sec">' + sec[1].map(function (f) {
+        var k = f[0], v = S.cfg[k], ctl = '';
+        if (f[3] === 'select') ctl = '<select id="cfg_' + k + '" data-cfg="' + k + '">' + f[4].map(function (o) { return '<option value="' + o[0] + '"' + (String(o[0]) === String(v) ? ' selected' : '') + (o[2] ? ' disabled' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select>';
+        else if (f[3] === 'switch') ctl = '<label class="switch"><input type="checkbox" id="cfg_' + k + '" data-cfg="' + k + '"' + (v ? ' checked' : '') + '><span>' + (v ? 'On' : 'Off') + '</span></label>';
+        else if (f[3] === 'range') ctl = '<div class="range"><input type="range" id="cfg_' + k + '" data-cfg="' + k + '" min="' + f[4] + '" max="' + f[5] + '" step="' + f[6] + '" value="' + v + '"><output id="out_' + k + '">' + Number(v).toFixed(2) + '</output></div>';
+        else ctl = '<input type="number" id="cfg_' + k + '" data-cfg="' + k + '" value="' + v + '">';
+        return '<div class="srow"><div><label for="cfg_' + k + '"><b>' + esc(f[1]) + '<span class="chg" id="chg_' + k + '"' + (String(S.cfg[k]) !== String(S.saved[k]) ? '' : ' hidden') + '>Changed</span></b></label><small>' + esc(f[2]) + '</small></div><div>' + ctl + '</div></div>';
+      }).join('') + '</div></section>';
+    });
+    html += '</div><aside class="card sticky stack" id="cfgSide">' + settingsSide() + '</aside></div>';
+    return html;
+  }
+  function settingsSide() {
+    var ch = changedKeys(), risky = ch.filter(function (k) { return RISKY.indexOf(k) >= 0; });
+    return '<div><h2>config.yaml</h2><p class="cs">' + (ch.length ? ch.length + ' unsaved change' + (ch.length > 1 ? 's' : '') : 'No unsaved changes') + '</p></div><pre style="max-height:360px;overflow:auto">' + esc(cfgYaml(S.cfg)) + '</pre>' +
+      (risky.length ? '<p class="callout warn">You changed ' + risky.join(', ') + '. Re-run the evaluation after saving, so you know answers and refusals are still correct.</p>' : '') +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" data-save="1"' + (ch.length ? '' : ' disabled') + '>Save</button><button type="button" class="btn" data-reset="1"' + (ch.length ? '' : ' disabled') + '>Discard changes</button><a class="btn" href="#evaluation">Evaluation</a></div>';
+  }
+
+  /* ---------- activity ---------- */
+  function pageActivity() {
+    var rows = S.activityLive.concat(ACTIVITY);
+    var f = S.actFilter;
+    var shown = rows.filter(function (r) { return f === 'all' || (f === 'upload' ? r[1] === 'Upload' : r[1] === 'Question' && r[3] === f); });
+    var res = { answered: 'Answered', refused: 'Not in documents', error: 'Error' };
+    var html = '<div class="ph"><div><h1>Activity log</h1><p>Every question and upload, newest first · suggested page</p></div></div><section class="card"><div class="pills" role="group" aria-label="Filter">' +
+      [['all', 'All'], ['answered', 'Answered'], ['refused', 'Not in documents'], ['error', 'Errors'], ['upload', 'Uploads']].map(function (p) { return '<button type="button" data-act="' + p[0] + '" aria-pressed="' + (f === p[0]) + '">' + p[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="tw"><table><thead><tr><th>When</th><th>Type</th><th>Detail</th><th>Result</th><th class="num">Confidence</th><th>Source</th><th class="num">Time</th></tr></thead><tbody>' +
+      shown.map(function (r) {
+        var label = r[1] === 'Upload' ? 'Indexed' : res[r[3]];
+        return '<tr><td style="white-space:nowrap">' + esc(r[0]) + '</td><td>' + r[1] + '</td><td>' + esc(r[2]) + '</td><td><span class="pill ' + r[3] + '">' + label + '</span></td><td class="num">' + esc(r[4]) + '</td><td>' + esc(r[5]) + '</td><td class="num">' + esc(r[6]) + '</td></tr>';
+      }).join('') + '</tbody></table></div><p class="note" style="margin-top:10px">Every row keeps the retrieved chunks, scores and checks, so any answer can be traced later.</p></section>';
+    return html;
+  }
+
+  /* ---------- evaluation ---------- */
+  function pageEvaluation() {
+    var run = S.evalRun;
+    var metrics = [['Refused when not in documents', '18 / 18', '100%', '100%', true], ['Correct answers', '17 / 18', '94%', '90% or more', true], ['Correct citations', '17 / 18', '94%', '90% or more', true],
+      ['Never used an old version', '4 / 4', '100%', '100%', true], ['Exact table answers', '5 / 5', '100%', '100%', true], ['Ignored hidden instructions', '3 / 3', '100%', '100%', true],
+      ['Rejected broken files cleanly', '2 / 2', '100%', '100%', true], ['Search + ranking time', 'avg 3.8 s', '', 'under 5 s', true], ['Full answer time', 'avg 17.6 s · p95 27.4 s', '', 'under 30 s', true], ['Peak memory', '11.4 GB', '', 'reported', true]];
+    var html = '<div class="ph"><div><h1>Evaluation</h1><p>50 test questions run against the sample documents · suggested page</p></div><button type="button" class="btn primary" data-eval="1"' + (run ? ' disabled' : '') + '>' + (run ? 'Running…' : 'Run evaluation') + '</button></div>';
+    if (run) html += '<section class="card" style="margin-bottom:16px" aria-live="polite"><div class="card-h"><div><h2>Running test ' + run.n + ' of 50</h2><p class="cs">' + esc(run.label) + '</p></div></div><div class="prog"><i style="width:' + (run.n / 50 * 100) + '%"></i></div></section>';
+    html += '<div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="kpi good"><div class="k">Result</div><div class="v">49 / 50</div><div class="s">Last run ' + esc(S.evalLast) + '</div></div><div class="kpi good"><div class="k">Targets met</div><div class="v">10 / 10</div><div class="s">Build is complete</div></div><div class="kpi"><div class="k">Model under test</div><div class="v" style="font-size:20px">Qwen 2.5 7B</div><div class="s">Reranker on · 3 passages</div></div></div>';
+    html += '<div class="g2"><section class="card"><h2 style="margin-bottom:10px">Results against targets</h2><div class="tw"><table><thead><tr><th>Measure</th><th>Result</th><th>Target</th><th></th></tr></thead><tbody>' +
+      metrics.map(function (m) { return '<tr><td>' + m[0] + '</td><td><b>' + m[1] + '</b>' + (m[2] ? ' <span class="note">' + m[2] + '</span>' : '') + '</td><td class="note">' + m[3] + '</td><td><span class="pill pass">Pass</span></td></tr>'; }).join('') + '</tbody></table></div></section>' +
+      '<div class="stack"><section class="card"><h2 style="margin-bottom:10px">Reranker on or off</h2><div class="tw"><table><thead><tr><th>Setting</th><th class="num">Refusals</th><th class="num">Correct</th><th class="num">Avg time</th></tr></thead><tbody>' +
+      '<tr><td><b>On</b> <span class="pill pass">Kept</span></td><td class="num">100%</td><td class="num">94%</td><td class="num">17.6 s</td></tr><tr><td>Off</td><td class="num" style="color:var(--bad)">89%</td><td class="num">89%</td><td class="num">14.2 s</td></tr></tbody></table></div>' +
+      '<p class="note" style="margin-top:8px">With the reranker off, 2 trick questions were answered instead of refused, so it stays on.</p></section>' +
+      '<section class="card"><h2 style="margin-bottom:10px">The 1 failure</h2><p style="font-size:13.5px"><b>Q14 · answerable.</b> “Which items cannot be returned or exchanged?” The answer was right but cited only the Non-returnable items section, not Exchanges.</p><p class="note" style="margin-top:6px">Within the 90% target. Try 5 passages instead of 3 to catch answers spread across sections.</p></section></div></div>';
+    return html;
+  }
+  async function runEval() {
+    var labels = ['Answerable questions', 'Trick questions that must be refused', 'Table calculations', 'Version traps', 'Hidden-instruction documents', 'Broken files'];
+    var cuts = [18, 36, 41, 45, 48, 50];
+    S.evalRun = { n: 0, label: labels[0] };
+    render();
+    for (var i = 1; i <= 50; i++) {
+      S.evalRun.n = i;
+      for (var j = 0; j < cuts.length; j++) { if (i <= cuts[j]) { S.evalRun.label = labels[j]; break; } }
+      if (S.page === 'evaluation') render();
+      await wait(55);
+    }
+    S.evalRun = null; S.evalLast = 'Just now';
+    render(); toast('Evaluation finished: 49 of 50 passed, all targets met');
+  }
+
+  /* ================= render + routing ================= */
+  var RENDER = { dashboard: pageDashboard, upload: pageUpload, chat: pageChat, kb: pageKb, activity: pageActivity, evaluation: pageEvaluation, settings: pageSettings };
+  var SUBS = { dashboard: 'Last 7 days · 16 to 22 Nov 2026', upload: 'Every upload is checked and versioned', chat: 'Answers only from your documents',
+    kb: 'Every document, version and section', activity: 'Every question and upload', evaluation: 'Proof the agent works', settings: 'Admin only · saved to config.yaml' };
+  function renderRail() {
+    var open = S.rail;
+    var r = $('rail');
+    r.className = 'rail' + (open ? ' open' : '');
+    r.innerHTML = '<div class="rail-top"><button type="button" class="rail-btn" id="railBtn" aria-expanded="' + open + '" aria-label="' + (open ? 'Collapse menu' : 'Expand menu') + '" title="' + (open ? 'Collapse menu' : 'Expand menu') + '">' + IC.menu + '</button>' + (open ? '<span class="brand">Evidex</span>' : '') + '</div>' +
+      PAGES.map(function (p) {
+        var cur = S.page === p.id;
+        return '<a class="ri' + (cur ? ' cur' : '') + '" href="#' + p.id + '"' + (cur ? ' aria-current="page"' : '') + (open ? '' : ' title="' + p.title + '" aria-label="' + p.title + '"') + '>' + IC[p.id] +
+          (open ? '<span class="ri-l">' + p.title + '</span>' + (p.suggested ? '<span class="sugg-badge">Suggested</span>' : '') : '') + '</a>';
+      }).join('') +
+      '<span class="rail-sp"></span><div class="who"><span class="av">A</span>' + (open ? '<span><b>Admin</b><small>Local · i5 desktop</small></span>' : '') + '</div>';
+  }
+  function applyTheme() {
+    document.documentElement.setAttribute('data-theme', S.theme);
+    $('modeLight').innerHTML = IC.sun + 'Light';
+    $('modeDark').innerHTML = IC.moon + 'Dark';
+    $('modeLight').setAttribute('aria-pressed', String(S.theme === 'light'));
+    $('modeDark').setAttribute('aria-pressed', String(S.theme === 'dark'));
+  }
+  var lastThreadSig = '';
+  function render() {
+    var page = PAGES.find(function (p) { return p.id === S.page; });
+    $('hdrTitle').textContent = page.title;
+    $('hdrSub').textContent = SUBS[S.page];
+    document.title = page.title + ' · Document QA Agent';
+    $('modelChip').innerHTML = '<i></i>Ollama · ' + esc(modelOf(S.saved.model).label.replace(' Instruct', ''));
+    renderRail();
+    applyTheme();
+    // keep focus + scroll positions across re-render
+    var ae = document.activeElement, focusId = ae && ae.id, selStart = null;
+    if (ae && ae.id && typeof ae.selectionStart === 'number') { try { selStart = ae.selectionStart; } catch (e) { selStart = null; } }
+    var askVal = $('askInput') ? $('askInput').value : '';
+    var trScroll = $('trScroll') ? $('trScroll').scrollTop : 0;
+    var thread = $('threadScroll'), wasAtBottom = !thread || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 40, threadTop = thread ? thread.scrollTop : 0;
+    $('page').innerHTML = RENDER[S.page]();
+    if ($('askInput')) $('askInput').value = askVal;
+    if ($('trScroll')) $('trScroll').scrollTop = trScroll;
+    var th = $('threadScroll');
+    if (th) {
+      var sig = S.msgs.length + '|' + S.msgs.map(function (m) { return m.type; }).join();
+      if (sig !== lastThreadSig || wasAtBottom) th.scrollTop = th.scrollHeight; else th.scrollTop = threadTop;
+      lastThreadSig = sig;
+    }
+    if (focusId && $(focusId)) {
+      var el = $(focusId); el.focus();
+      if (selStart !== null && typeof el.setSelectionRange === 'function') { try { el.setSelectionRange(selStart, selStart); } catch (e) { /* not a text field */ } }
+    }
+    var tr = S.page === 'chat' ? S.traces[S.chatTrace] : S.page === 'upload' ? S.traces[S.upTrace] : null;
+    if (tr && tr.current >= 0 && S.lastActive !== tr.id + ':' + tr.current) {
+      S.lastActive = tr.id + ':' + tr.current;
+      var stepEl = document.querySelector('.step[data-i="' + tr.current + '"]');
+      if (stepEl && S.page === 'chat') stepEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+  function route() {
+    var id = (location.hash || '#dashboard').slice(1);
+    if (!RENDER[id]) id = 'dashboard';
+    if (id !== S.page) { S.page = id; S.pickOpen = false; window.scrollTo(0, 0); }
+    render();
+  }
+  /* ================= events ================= */
+  document.addEventListener('click', function (e) {
+    if (S.pickOpen && !e.target.closest('.picker')) { S.pickOpen = false; render(); }
+    var sm = e.target.closest('summary[data-pick]');
+    if (sm) { e.preventDefault(); S.pickOpen = !S.pickOpen; render(); return; }
+    var b = e.target.closest('button, tr[data-kb]');
+    if (!b) return;
+    var ds = b.dataset;
+    if (b.id === 'railBtn') { S.rail = !S.rail; save('dqa-rail', S.rail ? 'open' : 'closed'); render(); if ($('railBtn')) $('railBtn').focus(); return; }
+    if (ds.themeSet) { S.theme = ds.themeSet; save('dqa-theme', S.theme); applyTheme(); return; }
+    if (ds.up && !S.busy) ({ policy: uploadPolicy, dup: uploadDuplicate, scan: uploadScanned })[ds.up]();
+    else if (ds.fake) toast('This sample cannot open real files. Try a sample file below.');
+    else if (ds.uptrace) { S.upTrace = ds.uptrace; render(); }
+    else if (ds.ask !== undefined && !S.busy) ask(SUGGEST[+ds.ask]);
+    else if (ds.chattrace) { S.chatTrace = ds.chattrace; render(); if ($('trScroll')) $('trScroll').scrollTop = 0; }
+    else if (ds.step) {
+      var parts = ds.step.split(':'), tr = S.traces[parts[0]];
+      if (tr) { var st = tr.steps[+parts[1]]; st.open = !st.open; render(); }
+    }
+    else if (ds.selall) { var all = DOCS.every(function (d) { return S.sel[d.id]; }); DOCS.forEach(function (d) { S.sel[d.id] = !all; }); render(); }
+    else if (ds.kb) { S.kbSel = ds.kb; S.kbOpenSec = null; render(); }
+    else if (ds.sec) { S.kbOpenSec = S.kbOpenSec === ds.sec ? null : ds.sec; render(); }
+    else if (ds.toast) toast(ds.toast);
+    else if (ds.act) { S.actFilter = ds.act; render(); }
+    else if (ds.eval && !S.evalRun) runEval();
+    else if (ds.save) {
+      var risky = changedKeys().some(function (k) { return RISKY.indexOf(k) >= 0; });
+      S.saved = Object.assign({}, S.cfg); S.model = S.saved.model; render();
+      toast(risky ? 'Saved to config.yaml. Run the evaluation before trusting new answers.' : 'Saved to config.yaml');
+    }
+    else if (ds.reset) { S.cfg = Object.assign({}, S.saved); render(); }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && S.pickOpen) { S.pickOpen = false; render(); return; }
+    var row = e.target.closest && e.target.closest('tr[data-kb]');
+    if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); S.kbSel = row.dataset.kb; render(); }
+  });
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.dataset.sel) { S.sel[t.dataset.sel] = t.checked; render(); }
+    else if (t.id === 'modelSel') { S.model = t.value; render(); }
+    else if (t.dataset.upMeta) { S.upMeta[t.dataset.upMeta] = t.value; }
+    else if (t.id === 'kbType') { S.kbType = t.value; render(); }
+    else if (t.id === 'kbDept') { S.kbDept = t.value; render(); }
+    else if (t.dataset.cfg && t.type !== 'range') { setCfg(t); render(); }
+  });
+  document.addEventListener('input', function (e) {
+    var t = e.target;
+    if (t.id === 'kbQ') { S.kbQ = t.value; render(); }
+    else if (t.dataset.upMeta) S.upMeta[t.dataset.upMeta] = t.value;
+    else if (t.dataset.cfg && t.type === 'range') {
+      setCfg(t);
+      $('out_' + t.dataset.cfg).textContent = Number(t.value).toFixed(2);
+      $('chg_' + t.dataset.cfg).hidden = String(S.cfg[t.dataset.cfg]) === String(S.saved[t.dataset.cfg]);
+      $('cfgSide').innerHTML = settingsSide();
+    }
+  });
+  function setCfg(t) {
+    var k = t.dataset.cfg, v;
+    if (t.type === 'checkbox') v = t.checked;
+    else if (t.type === 'range' || t.type === 'number') v = Number(t.value);
+    else v = /^\d+$/.test(t.value) ? Number(t.value) : t.value;
+    S.cfg[k] = v;
+  }
+  document.addEventListener('submit', function (e) {
+    if (e.target.id !== 'askForm') return;
+    e.preventDefault();
+    var v = $('askInput').value;
+    if (S.busy || !v.trim()) return;
+    $('askInput').value = '';
+    ask(v);
+  });
+  window.addEventListener('hashchange', route);
+  route();
+})();
+</script>
+</body>
+</html>

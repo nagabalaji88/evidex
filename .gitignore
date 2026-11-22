@@ -1,0 +1,27 @@
+# Runtime data (vector store, SQLite, uploads)
+data/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Front end
+node_modules/
+frontend/dist/
+
+# Evaluation output
+eval/report.md
+
+# Local and secret files
+.env
+CLAUDE.local.md
+.claude/settings.local.json
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
