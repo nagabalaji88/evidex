@@ -40,6 +40,7 @@ class ProgressEvent(BaseModel):
     stage: str
     done: int
     total: int
+    detail: str | None = None
 
 
 class ErrorEvent(BaseModel):
@@ -221,3 +222,48 @@ class TraceResponse(BaseModel):
     steps: list[TraceStep]
     answer: AnswerPayload | None = None
     total_ms: int | None = None
+
+
+# -- evaluation (spec section 7) ----------------------------------------------------------------
+
+
+class EvalRunRequest(BaseModel):
+    compare: bool = False  # also run reranker on/off x final_k 3/5 (slow)
+
+
+class EvalCase(BaseModel):
+    id: str
+    category: str
+    question: str
+    passed: bool
+    reason: str
+    answer: str = ""
+    kind: str = ""
+    refused: bool = False
+    correct: bool | None = None
+    citation_ok: bool | None = None
+    cited: list[str] = []
+    best_score: float | None = None
+    gate_passed: bool | None = None
+    total_ms: int = 0
+    retrieval_ms: int = 0
+    ai_called: bool = False
+
+
+class EvalRun(BaseModel):
+    label: str
+    settings: dict[str, Any]
+    cases: list[EvalCase]
+    metrics: dict[str, Any]
+    peak_ram_gb: float
+    started: str
+    seconds: float
+
+
+class EvalReport(BaseModel):
+    created_at: str
+    main: EvalRun
+    comparisons: list[EvalRun]
+    sweep: dict[str, Any] | None = None
+    cheapest_passing: dict[str, Any] | None = None
+    targets: dict[str, float]

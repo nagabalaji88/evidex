@@ -12,7 +12,7 @@ import httpx
 from fastapi import APIRouter, FastAPI, Request
 
 from .answer.ask import AskService
-from .api import ask, documents
+from .api import ask, documents, evaluation
 from .api.openapi import register_models
 from .api.sse import EVENT_MODELS
 from .config import Config, get_config
@@ -81,6 +81,7 @@ def create_app(
     app.include_router(router)
     app.include_router(documents.router)
     app.include_router(ask.router)
+    app.include_router(evaluation.router)
     register_models(app, list(EVENT_MODELS.values()))
     return app
 
