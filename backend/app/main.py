@@ -1,4 +1,5 @@
-"""FastAPI application. Every endpoint lives under /api (spec section 8.1).
+"""FastAPI application. Every endpoint lives under /api (spec section 8.1); in production
+FastAPI also serves the built React app (frontend/dist) at http://localhost:8000.
 
 Run: cd backend; .venv\\Scripts\\python -m uvicorn app.main:app --reload
 """
@@ -10,12 +11,13 @@ from typing import Callable
 
 import httpx
 from fastapi import APIRouter, FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse
 
 from .answer.ask import AskService
-from .api import ask, documents, evaluation
+from .api import ask, documents, evaluation, insights, settings
 from .api.openapi import register_models
 from .api.sse import EVENT_MODELS
-from .config import Config, get_config
+from .config import REPO_ROOT, Config, get_config
 from .health import RerankerState, run_health_checks
 from .ingestion.pipeline import Embedder, Ingestor
 from .ingestion.versioning import check_embedding_model, reconcile
@@ -28,6 +30,8 @@ from .store.keyword import KeywordIndex
 from .store.sqlite import open_database
 from .store.vectors import VectorStore, open_vector_store
 
+FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
+
 router = APIRouter(prefix="/api")
 
 
@@ -37,6 +41,21 @@ async def health(request: Request) -> HealthResponse:
     return await run_health_checks(s.config, s.ollama, s.reranker_state, lambda: s.vectors)
 
 
+def build_services(app: FastAPI, cfg: Config) -> None:
+    """(Re)create everything that holds the config. Called at start-up and after Settings save."""
+    s = app.state
+    old = getattr(s, "config", None)
+    s.config = cfg
+    if old is None or old.reranker != cfg.reranker:
+        s.reranker_state = RerankerState.load(cfg, s.reranker_loader)
+    if old is None or old.ollama != cfg.ollama or old.models != cfg.models:
+        s.ollama = OllamaClient(cfg, transport=s.ollama_transport)
+    embedder = s.embedder_override or s.ollama
+    s.ingestor = Ingestor(cfg, s.db, s.vectors, embedder)
+    s.retriever = Retriever(cfg, s.db, s.vectors, s.keyword_index, embedder, s.reranker_state.reranker, s.ollama)
+    s.ask_service = AskService(cfg, s.db, s.retriever, s.ollama)
+
+
 def create_app(
     config: Config | None = None,
     *,
@@ -44,13 +63,14 @@ def create_app(
     reranker_loader: Callable[[Config], Reranker] = load_reranker,
     open_store: Callable[[Config], object] = open_vector_store,
     embedder: Embedder | None = None,
+    serve_frontend: bool = True,
+    config_file=None,
 ) -> FastAPI:
     """Build the app. Tests inject a fake Ollama transport, reranker loader, store and embedder."""
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         cfg = config or get_config()
-        app.state.config = cfg
         db = open_database(cfg)
         # Refuse to start if the index was built with another embedding model (spec section 4).
         try:
@@ -58,31 +78,42 @@ def create_app(
         except Exception:
             db.close()
             raise
-        app.state.db = db
-        app.state.ollama = OllamaClient(cfg, transport=ollama_transport)
-        app.state.reranker_state = RerankerState.load(cfg, reranker_loader)
-        app.state.vectors = _LazyVectors(cfg, open_store)
-        if app.state.vectors.available():
-            reconcile(db, app.state.vectors.store)
-        app.state.keyword_index = KeywordIndex(db)
-        app.state.ingestor = Ingestor(cfg, db, app.state.vectors, embedder or app.state.ollama)
+        s = app.state
+        s.db, s.ollama_transport, s.reranker_loader, s.embedder_override = db, ollama_transport, reranker_loader, embedder
+        s.config_file = config_file
+        s.vectors = _LazyVectors(cfg, open_store)
+        if s.vectors.available():
+            reconcile(db, s.vectors.store)
+        s.keyword_index = KeywordIndex(db)
         ensure_columns(db)
-        app.state.retriever = Retriever(cfg, db, app.state.vectors, app.state.keyword_index,
-                                        embedder or app.state.ollama, app.state.reranker_state.reranker,
-                                        app.state.ollama)
-        app.state.ask_service = AskService(cfg, db, app.state.retriever, app.state.ollama)
+        build_services(app, cfg)
         try:
             yield
         finally:
-            await app.state.ollama.aclose()
+            await s.ollama.aclose()
             db.close()
 
-    app = FastAPI(title="Evidex", version="0.2.0", lifespan=lifespan)
+    app = FastAPI(title="Evidex", version="1.0.0", lifespan=lifespan)
+    app.state.build_services = build_services
     app.include_router(router)
-    app.include_router(documents.router)
-    app.include_router(ask.router)
-    app.include_router(evaluation.router)
+    for r in (documents.router, ask.router, evaluation.router, insights.router, settings.router):
+        app.include_router(r)
     register_models(app, list(EVENT_MODELS.values()))
+
+    if serve_frontend:
+        @app.get("/{path:path}", include_in_schema=False)
+        async def spa(path: str):
+            if path.startswith("api/") or path == "api":
+                return JSONResponse({"detail": "Not Found"}, status_code=404)
+            dist = FRONTEND_DIST.resolve()
+            target = (dist / path).resolve()
+            if path and target.is_file() and dist in target.parents:
+                return FileResponse(target)
+            index = dist / "index.html"
+            if index.is_file():
+                return FileResponse(index)
+            return JSONResponse({"detail": "The front end is not built. Run: cd frontend; npm install; "
+                                           "npm run build"}, status_code=404)
     return app
 
 

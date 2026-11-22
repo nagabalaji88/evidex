@@ -11,7 +11,7 @@ import asyncio
 import hashlib
 import time
 from dataclasses import dataclass, field
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from typing import Any, AsyncIterator, Protocol
 
 from ..config import Config
@@ -221,6 +221,50 @@ class Ingestor:
         folder = self.uploads_dir / f"v{version_id}"
         folder.mkdir(parents=True, exist_ok=True)
         (folder / filename).write_bytes(data)
+
+    async def rebuild_version(self, version_id: int) -> dict[str, Any]:
+        """Re-index one version from its stored original with the current chunk settings and
+        embedding model. The new chunks are built and embedded first; one transaction then
+        swaps them in, so searches never see a half-rebuilt document."""
+        async with self._lock:
+            row = self.db.one("SELECT * FROM versions WHERE id = ?", (version_id,))
+            if row is None:
+                raise IngestError("not_found", f"Version {version_id} does not exist.")
+            data = Path(row["original_path"]).read_bytes()
+            kind = validate(row["filename"], data, self.config)
+            doc = await asyncio.to_thread(extract, kind, row["filename"], data, self.config)
+            chunks = await asyncio.to_thread(chunk_document, doc, self.config)
+            gen = self.db.generation() + 1
+            status = row["status"]
+            new_rows = [(f"v{version_id}-g{gen}-c{i:05d}", version_id, row["document_id"], i, row["filename"],
+                         row["version"], c.page, c.section, c.source_location, c.text, c.body) for i, c in
+                        enumerate(chunks)]
+            size = self.config.ingestion.embed_batch_size
+            meta_rows = [dict(zip(("id", "version_id", "document_id", "ord", "doc_name", "version", "page", "section",
+                                   "source_location", "text", "body"), r)) | {"status": "pending"} for r in new_rows]
+            try:
+                for i in range(0, len(meta_rows), size):
+                    batch = meta_rows[i : i + size]
+                    vecs = await self.embedder.embed_documents([r["text"] for r in batch])
+                    self.vectors.add([r["id"] for r in batch], vecs, [chunk_metadata(r) for r in batch],
+                                     [r["text"] for r in batch])
+            except BaseException:
+                self.vectors.collection.delete(ids=[r["id"] for r in meta_rows])
+                raise
+            old_ids = [r["id"] for r in self.db.chunks_for_version(version_id)]
+            with self.db.transaction() as conn:
+                conn.execute("DELETE FROM chunks WHERE version_id = ?", (version_id,))
+                conn.executemany(
+                    "INSERT INTO chunks(id, version_id, document_id, ord, doc_name, version, page, section, "
+                    "source_location, text, body, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [r + (status,) for r in new_rows])
+                conn.execute("UPDATE versions SET chunk_count = ?, embedding_model = ?, title = ? WHERE id = ?",
+                             (len(chunks), self.config.models.embedding, doc.title, version_id))
+                self.db.bump_generation(conn)
+            if old_ids:
+                self.vectors.collection.delete(ids=old_ids)
+            self.vectors.set_status(version_id, status)
+            return {"version_id": version_id, "chunks": len(chunks)}
 
     async def rollback(self, document_id: int, version: int) -> dict[str, Any]:
         """Make an older version active again (atomic, like an upload). Its chunks are

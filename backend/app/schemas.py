@@ -267,3 +267,180 @@ class EvalReport(BaseModel):
     sweep: dict[str, Any] | None = None
     cheapest_passing: dict[str, Any] | None = None
     targets: dict[str, float]
+
+
+# -- knowledge base, uploads ---------------------------------------------------------------------
+
+
+class VersionInfo(BaseModel):
+    id: int
+    version: int
+    status: Literal["pending", "active", "inactive"]
+    uploaded_at: str
+    department: str
+    owner: str
+    size_bytes: int
+    pages: int | None = None
+    sections: int = 0
+    chunks: int = 0
+    table_rows: int = 0
+    note: str
+
+
+class SectionInfo(BaseModel):
+    name: str
+    page: int | None = None
+    chunks: int
+    source_location: str
+    preview: str
+    tokens: int
+
+
+class TableInfo(BaseModel):
+    table_name: str
+    sheet: str | None = None
+    columns: list[dict[str, str]]
+    row_count: int
+    sample_rows: list[list[Any]]
+
+
+class DocumentDetail(BaseModel):
+    summary: DocumentSummary
+    versions: list[VersionInfo]
+    sections: list[SectionInfo] = []
+    tables: list[TableInfo] = []
+    used_in_answers: int
+
+
+class RollbackRequest(BaseModel):
+    version: int
+
+
+class ActionResult(BaseModel):
+    ok: bool
+    message: str
+
+
+class UploadRow(BaseModel):
+    id: int
+    filename: str
+    file_type: str
+    version: int | None = None
+    department: str | None = None
+    owner: str | None = None
+    uploaded_at: str
+    size_bytes: int
+    result: Literal["indexed", "duplicate", "rejected", "failed"]
+    status: str  # active | inactive | rejected | skipped | failed
+    message: str
+
+
+class UploadList(BaseModel):
+    uploads: list[UploadRow]
+
+
+class UploadSteps(BaseModel):
+    id: int
+    filename: str
+    result: str
+    message: str
+    events: list[dict[str, Any]]
+
+
+# -- dashboard, activity (spec section 8) --------------------------------------------------------
+
+
+class DayCount(BaseModel):
+    date: str
+    answered: int
+    refused: int
+    errors: int
+
+
+class NameCount(BaseModel):
+    name: str
+    count: int
+
+
+class Stats(BaseModel):
+    days: int
+    since: str
+    documents: int
+    versions: int
+    kept_for_rollback: int
+    chunks: int
+    table_rows: int
+    questions: int
+    answered: int
+    not_in_documents: int
+    errors: int
+    avg_response_s: float | None = None
+    p95_response_s: float | None = None
+    avg_confidence: float | None = None
+    per_day: list[DayCount]
+    confidence: list[NameCount]  # High, Medium, Low, Exact
+    document_types: list[NameCount]
+    most_cited: list[NameCount]
+    gaps: list[NameCount]
+    health: HealthResponse
+    last_eval: dict[str, Any] | None = None
+    peak_ram_gb: float | None = None
+    total_ram_gb: float
+    thresholds: dict[str, float]
+
+
+class ActivityRow(BaseModel):
+    kind: Literal["question", "upload"]
+    id: int
+    when: str
+    detail: str
+    result: Literal["answered", "refused", "error", "indexed", "duplicate", "rejected", "failed"]
+    confidence: str
+    source: str
+    ms: int | None = None
+    trace_id: int | None = None
+    feedback: int | None = None
+
+
+class ActivityList(BaseModel):
+    rows: list[ActivityRow]
+
+
+# -- settings, models ------------------------------------------------------------------------------
+
+
+class SettingsResponse(BaseModel):
+    config: dict[str, Any]
+    yaml: str
+    path: str
+
+
+class SettingsUpdate(BaseModel):
+    """Dotted keys, e.g. {"retrieval.relevance_threshold": 0.35}."""
+
+    changes: dict[str, Any]
+
+
+class SettingsSaved(BaseModel):
+    saved: bool
+    changed: list[str]
+    rerun_evaluation: bool
+    reindex_required: bool
+    message: str
+    config: dict[str, Any]
+
+
+class ModelInfo(BaseModel):
+    name: str
+    size_gb: float | None = None
+    family: str | None = None
+    parameter_size: str | None = None
+    is_embedding: bool
+    tested: bool
+    fits_in_ram: bool
+
+
+class ModelList(BaseModel):
+    models: list[ModelInfo]
+    default: str
+    error: str | None = None

@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import re
 import sys
 from pathlib import Path
 
@@ -22,20 +21,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from app.config import DEFAULT_CONFIG_PATH, load_config  # noqa: E402
+from app.config_writer import set_config_value  # noqa: E402,F401
 from app.evaluation.runner import (REPORT_MD, report_dict, run_suite, save_report,  # noqa: E402
                                    threshold_sweep)
 from app.health import RerankerState  # noqa: E402
 from app.reranker import load_reranker  # noqa: E402
-
-
-def set_config_value(path: Path, section: str, key: str, value) -> None:
-    """Replace one `key: value` inside `section:` of config.yaml, keeping comments."""
-    text = path.read_text(encoding="utf-8")
-    pattern = re.compile(rf"(^{section}:\n(?:[ \t]+.*\n|\n)*?[ \t]+{key}:[ \t]*)([^#\n]*?)([ \t]*(#.*)?)$", re.M)
-    if not pattern.search(text):
-        raise SystemExit(f"could not find {section}.{key} in {path}")
-    value_s = str(value).lower() if isinstance(value, bool) else str(value)
-    path.write_text(pattern.sub(lambda m: m.group(1) + value_s + m.group(3), text, count=1), encoding="utf-8")
 
 
 async def main_async(args) -> int:
