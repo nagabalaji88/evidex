@@ -1,0 +1,66 @@
+[
+  {
+    "store_id": "KR-S01",
+    "city": "Mumbai",
+    "region": "West",
+    "manager": "Priya Nair",
+    "opened": "2019-04-12",
+    "area_sqft": 12000
+  },
+  {
+    "store_id": "KR-S02",
+    "city": "Pune",
+    "region": "West",
+    "manager": "Rahul Deshmukh",
+    "opened": "2020-11-02",
+    "area_sqft": 8500
+  },
+  {
+    "store_id": "KR-S03",
+    "city": "Chennai",
+    "region": "South",
+    "manager": "Anitha Raman",
+    "opened": "2018-08-20",
+    "area_sqft": 10500
+  },
+  {
+    "store_id": "KR-S04",
+    "city": "Bengaluru",
+    "region": "South",
+    "manager": "Karthik Rao",
+    "opened": "2021-01-15",
+    "area_sqft": 14000
+  },
+  {
+    "store_id": "KR-S05",
+    "city": "Delhi",
+    "region": "North",
+    "manager": "Simran Kaur",
+    "opened": "2017-06-30",
+    "area_sqft": 16000
+  },
+  {
+    "store_id": "KR-S06",
+    "city": "Jaipur",
+    "region": "North",
+    "manager": "Vikram Singh",
+    "opened": "2022-09-10",
+    "area_sqft": 7000
+  },
+  {
+    "store_id": "KR-S07",
+    "city": "Kolkata",
+    "region": "East",
+    "manager": "Debjani Sen",
+    "opened": "2019-12-01",
+    "area_sqft": 9500
+  },
+  {
+    "store_id": "KR-S08",
+    "city": "Bhubaneswar",
+    "region": "East",
+    "manager": "Sanjay Mohanty",
+    "opened": "2023-03-18",
+    "area_sqft": 6500
+  }
+]

@@ -1,0 +1,34 @@
+{
+  "programme": {
+    "name": "Kestrel Rewards",
+    "owner": "Marketing",
+    "launched": "2025-10-01",
+    "tiers": {
+      "silver": {
+        "min_annual_spend": 0,
+        "points_per_100": 1,
+        "birthday_bonus_points": 100
+      },
+      "gold": {
+        "min_annual_spend": 25000,
+        "points_per_100": 2,
+        "birthday_bonus_points": 250
+      },
+      "platinum": {
+        "min_annual_spend": 75000,
+        "points_per_100": 3,
+        "birthday_bonus_points": 500,
+        "free_express_delivery": true
+      }
+    },
+    "points": {
+      "value_in_rupees": 0.25,
+      "expiry_months": 18,
+      "min_redeem_points": 200
+    },
+    "support": {
+      "email": "rewards@kestrel.example",
+      "hours": "09:00-18:00 Monday to Saturday"
+    }
+  }
+}

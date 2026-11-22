@@ -50,6 +50,8 @@ Then follow `docs/claude-code-guide.md`, starting with `/milestone 1`.
 ## Running (once built)
 
 ```powershell
+cd backend; python -m venv .venv; .venv\Scripts\python -m pip install -r requirements.txt
+cd backend; .venv\Scripts\python -m app.setup_check     # health + benchmark -> docs/benchmarks.md
 cd backend; .venv\Scripts\python -m pytest -q          # tests
 cd frontend; npm install; npm run build                 # build the UI
 cd backend; .venv\Scripts\python -m uvicorn app.main:app  # app at http://localhost:8000

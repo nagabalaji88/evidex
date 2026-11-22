@@ -16,6 +16,7 @@ The UI must match design/reference-ui.html (open it, do not guess).
 ## Commands
 - Backend venv: backend\.venv (create with python -m venv)
 - Backend tests: cd backend; .venv\Scripts\python -m pytest -q
+- Setup check (M1, writes docs/benchmarks.md): cd backend; .venv\Scripts\python -m app.setup_check
 - Run API: cd backend; .venv\Scripts\python -m uvicorn app.main:app --reload
 - Front end: cd frontend; npm run dev  (production: npm run build)
 - Evaluation: backend\.venv\Scripts\python eval\run_eval.py
