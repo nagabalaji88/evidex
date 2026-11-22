@@ -79,3 +79,88 @@ class FakeReranker:
 
     def score(self, question, passages):
         return [0.5 for _ in passages]
+
+
+# -- ingestion helpers ---------------------------------------------------------------------
+
+import asyncio
+import hashlib
+import math
+import re
+
+from app.config import REPO_ROOT
+
+SAMPLE_DOCS = REPO_ROOT / "eval" / "sample_docs"
+
+
+class FakeEmbedder:
+    """Deterministic hashed bag-of-words vectors: similar text -> similar vectors.
+    Optional hooks let tests pause or fail in the middle of embedding."""
+
+    dim = 256
+
+    def __init__(self):
+        self.calls = 0
+        self.texts: list[str] = []
+        self.before_batch = None  # async callable(batch_index)
+
+    def vector(self, text: str) -> list[float]:
+        v = [0.0] * self.dim
+        for w in re.findall(r"\w+", text.lower()):
+            v[int(hashlib.md5(w.encode()).hexdigest(), 16) % self.dim] += 1.0
+        n = math.sqrt(sum(x * x for x in v)) or 1.0
+        return [x / n for x in v]
+
+    async def embed_documents(self, chunks):
+        if self.before_batch is not None:
+            await self.before_batch(self.calls)
+        self.calls += 1
+        self.texts.extend(chunks)
+        return [self.vector(c) for c in chunks]
+
+    async def embed_query(self, q):
+        return self.vector(q)
+
+
+class Env:
+    """An Ingestor over a temporary SQLite + Chroma, with a fake embedder."""
+
+    def __init__(self, config):
+        from app.ingestion.pipeline import Ingestor
+        from app.store.keyword import KeywordIndex
+        from app.store.sqlite import Database
+        from app.store.vectors import VectorStore, open_vector_store
+
+        self.config = config
+        self.db = Database(config.sqlite_path)
+        self.vectors = VectorStore(open_vector_store(config))
+        self.embedder = FakeEmbedder()
+        self.ingestor = Ingestor(config, self.db, self.vectors, self.embedder)
+        self.keywords = KeywordIndex(self.db)
+
+    def ingest(self, path, name=None, data=None, department="Customer Care", owner="Asha"):
+        async def go():
+            return [ev async for ev in self.ingestor.ingest(
+                name or path.name, data if data is not None else path.read_bytes(), department, owner)]
+
+        return asyncio.run(go())
+
+    def search(self, query, k=50):
+        return self.vectors.search(self.embedder.vector(query), k, self.db.active_version_ids())
+
+    def all_vector_ids(self):
+        return sorted(self.vectors.collection.get(include=[])["ids"])
+
+    def close(self):
+        self.db.close()
+
+
+@pytest.fixture
+def env(config):
+    e = Env(config)
+    yield e
+    e.close()
+
+
+def result_of(events):
+    return next(e for e in events if e.event in ("result", "error"))

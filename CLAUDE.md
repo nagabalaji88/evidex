@@ -17,6 +17,7 @@ The UI must match design/reference-ui.html (open it, do not guess).
 - Backend venv: backend\.venv (create with python -m venv)
 - Backend tests: cd backend; .venv\Scripts\python -m pytest -q
 - Setup check (M1, writes docs/benchmarks.md): cd backend; .venv\Scripts\python -m app.setup_check
+- Re-index (after changing the embedding model; stop the API first): cd backend; .venv\Scripts\python -m app.reindex
 - Run API: cd backend; .venv\Scripts\python -m uvicorn app.main:app --reload
 - Front end: cd frontend; npm run dev  (production: npm run build)
 - Evaluation: backend\.venv\Scripts\python eval\run_eval.py
