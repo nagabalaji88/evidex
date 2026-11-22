@@ -28,11 +28,13 @@ def config(tmp_path: Path) -> Config:
 
 
 class FakeOllama:
-    """An httpx MockTransport standing in for the Ollama server. Records every request."""
+    """An httpx MockTransport standing in for the Ollama server. Records every request.
+    `chat_reply(body) -> str` sets the assistant content for /api/chat calls."""
 
-    def __init__(self, models=("qwen2.5:7b-instruct", "nomic-embed-text:latest"), down=False):
+    def __init__(self, models=("qwen2.5:7b-instruct", "nomic-embed-text:latest"), down=False, chat_reply=None):
         self.models = list(models)
         self.down = down
+        self.chat_reply = chat_reply
         self.requests: list[tuple[str, dict]] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
@@ -43,7 +45,8 @@ class FakeOllama:
         if request.url.path == "/api/tags":
             return httpx.Response(200, json={"models": [{"name": m, "model": m} for m in self.models]})
         if request.url.path == "/api/chat":
-            content = json.dumps({"found_in_document": True, "sentences": [{"text": "x", "ids": ["S1"]}], "missing": ""})
+            content = self.chat_reply(body) if self.chat_reply else json.dumps(
+                {"found_in_document": True, "sentences": [{"text": "x", "ids": ["S1"]}], "missing": ""})
             return httpx.Response(
                 200,
                 json={
@@ -73,12 +76,26 @@ def fake_ollama() -> FakeOllama:
     return FakeOllama()
 
 
+_STOP = set("a an the of to in on for and or is are was were be what which who whom how do does did i my we "
+             "you your can could should would will it its this that there with by at from as about any".split())
+
+
+def _content_words(text):
+    import re as _re
+    return {w for w in _re.findall(r"[a-z0-9]+(?:[.-][a-z0-9]+)*", text.lower()) if w not in _STOP}
+
+
 class FakeReranker:
+    """Scores = share of the question's content words found in the passage (0..1)."""
+
     def __init__(self, config: Config):
         self.model_name = config.reranker.model
+        self.calls = 0
 
     def score(self, question, passages):
-        return [0.5 for _ in passages]
+        self.calls += 1
+        q = _content_words(question)
+        return [len(q & _content_words(p)) / len(q) if q else 0.0 for p in passages]
 
 
 # -- ingestion helpers ---------------------------------------------------------------------

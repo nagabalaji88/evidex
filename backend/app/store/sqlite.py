@@ -93,6 +93,35 @@ CREATE TABLE IF NOT EXISTS uploads (
     version_id  INTEGER,
     steps       TEXT NOT NULL    -- JSON list of the streamed events
 );
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id         INTEGER PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    role       TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content    TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_chat_session ON chat_messages(session_id, id);
+
+-- One row per question (spec section 11): feeds the Dashboard, Activity log and traces.
+CREATE TABLE IF NOT EXISTS question_log (
+    id                  INTEGER PRIMARY KEY,
+    session_id          TEXT NOT NULL,
+    created_at          TEXT NOT NULL,
+    question            TEXT NOT NULL,
+    standalone_question TEXT NOT NULL,
+    route               TEXT NOT NULL,
+    document_ids        TEXT,            -- JSON list, NULL = all active documents
+    gate_passed         INTEGER,
+    best_score          REAL,
+    gate_method         TEXT,
+    answer_llm_called   INTEGER NOT NULL DEFAULT 0,
+    llm_calls           TEXT NOT NULL,   -- JSON list of {"purpose", "model", "ms"}
+    candidates          TEXT NOT NULL,   -- JSON list of chunk ids and scores
+    steps               TEXT NOT NULL,   -- JSON list of steps
+    retrieval_ms        INTEGER,
+    outcome             TEXT NOT NULL
+);
 """
 
 TABLE_PREFIX = "tbl_"
@@ -204,6 +233,38 @@ class Database:
         with self._lock:
             cur = self.conn.execute(f"INSERT INTO uploads({cols}) VALUES({marks})", tuple(fields.values()))
             return int(cur.lastrowid)
+
+
+    # -- chat history (spec section 5: per session id, survives a restart) -----------------
+
+    def add_message(self, session_id: str, role: str, content: str) -> None:
+        with self._lock:
+            self.conn.execute(
+                "INSERT INTO chat_messages(session_id, role, content, created_at) VALUES (?, ?, ?, ?)",
+                (session_id, role, content, now_iso()),
+            )
+
+    def recent_turns(self, session_id: str, turns: int) -> list[tuple[str, str | None]]:
+        """The last `turns` (question, answer) pairs of a session, oldest first."""
+        if turns <= 0:
+            return []
+        rows = self.query(
+            "SELECT role, content FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT ?",
+            (session_id, turns * 2 + 1),
+        )
+        pairs: list[tuple[str, str | None]] = []
+        pending_answer: str | None = None
+        for r in rows:  # newest first
+            if r["role"] == "assistant":
+                pending_answer = r["content"]
+            else:
+                pairs.append((r["content"], pending_answer))
+                pending_answer = None
+        return list(reversed(pairs[:turns]))
+
+    def clear_history(self, session_id: str) -> None:
+        with self._lock:
+            self.conn.execute("DELETE FROM chat_messages WHERE session_id = ?", (session_id,))
 
 
 def open_database(config) -> Database:
