@@ -45,15 +45,20 @@ class _Run:
     version_id: int | None = None
 
 
+def _n(count: int, word: str) -> str:
+    return f"{count} {word}{'' if count == 1 else 's'}"
+
+
 def summary_line(title: str, version: int, doc: TextDoc | TableDoc, n_chunks: int) -> str:
+    """The confirmation from spec section 4, e.g. "Policy v3 indexed: 42 pages, 118 chunks."."""
     if isinstance(doc, TableDoc):
         rows = sum(len(t.rows) for t in doc.tables)
-        tables = f"{len(doc.tables)} table" + ("s" if len(doc.tables) != 1 else "")
-        return f"{title} v{version} indexed: {tables}, {rows} rows, {n_chunks} chunks."
+        return f"{title} v{version} indexed: {_n(len(doc.tables), 'table')}, {_n(rows, 'row')}, {_n(n_chunks, 'chunk')}."
     if doc.pages:
-        return f"{title} v{version} indexed: {doc.pages} page{'s' if doc.pages != 1 else ''}, {n_chunks} chunks."
-    n = len(doc.sections)
-    return f"{title} v{version} indexed: {n} section{'s' if n != 1 else ''}, {n_chunks} chunks."
+        return f"{title} v{version} indexed: {_n(doc.pages, 'page')}, {_n(n_chunks, 'chunk')}."
+    if doc.sections:
+        return f"{title} v{version} indexed: {_n(len(doc.sections), 'section')}, {_n(n_chunks, 'chunk')}."
+    return f"{title} v{version} indexed: {_n(n_chunks, 'chunk')}."
 
 
 class Ingestor:

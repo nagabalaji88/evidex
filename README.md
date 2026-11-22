@@ -47,13 +47,26 @@ claude
 
 Then follow `docs/claude-code-guide.md`, starting with `/milestone 1`.
 
-## Running (once built)
+## Running
 
 ```powershell
-cd backend; python -m venv .venv; .venv\Scripts\python -m pip install -r requirements.txt
-cd backend; .venv\Scripts\python -m app.setup_check     # health + benchmark -> docs/benchmarks.md
-cd backend; .venv\Scripts\python -m pytest -q          # tests
-cd frontend; npm install; npm run build                 # build the UI
-cd backend; .venv\Scripts\python -m uvicorn app.main:app  # app at http://localhost:8000
-backend\.venv\Scripts\python eval\run_eval.py          # evaluation -> eval/report.md
+# Backend (first time)
+cd backend; python -m venv .venv
+.venv\Scripts\python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python -m pytest -q                         # backend tests
+.venv\Scripts\python -m app.setup_check                   # health + benchmark -> docs/benchmarks.md
+
+# Front end (first time, and after UI changes)
+cd frontend; npm install; npm test; npm run build
+
+# Daily use: one process, one URL -> http://localhost:8000
+cd backend; .venv\Scripts\python -m uvicorn app.main:app
+
+# Evaluation -> eval/report.md (add --compare for reranker on/off x final_k 3/5,
+# and --write-config to record the tuned threshold and cheapest passing setting)
+backend\.venv\Scripts\python eval\run_eval.py --compare
 ```
+
+While working on the UI, run the API with `--reload` and `cd frontend; npm run dev` (Vite proxies `/api`
+to port 8000). After changing an API model, run `npm run gen:types` with the API running.
