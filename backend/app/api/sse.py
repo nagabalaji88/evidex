@@ -5,12 +5,13 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from ..schemas import DoneEvent, ErrorEvent, ProgressEvent, StageEvent, UploadResult
+from ..schemas import AnswerPayload, DoneEvent, ErrorEvent, ProgressEvent, StageEvent, UploadResult
 
 EVENT_MODELS: dict[str, type[BaseModel]] = {
     "stage": StageEvent,
     "progress": ProgressEvent,
     "result": UploadResult,
+    "answer": AnswerPayload,
     "error": ErrorEvent,
     "done": DoneEvent,
 }

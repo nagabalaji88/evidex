@@ -92,3 +92,132 @@ class DocumentSummary(BaseModel):
 
 class DocumentList(BaseModel):
     documents: list[DocumentSummary]
+
+
+# -- ask (spec sections 3, 5, 6, 8) -----------------------------------------------------------
+
+
+class AskRequest(BaseModel):
+    question: str
+    session_id: str
+    document_ids: list[int] | None = None  # None = all active documents
+    model: str | None = None  # None = models.answer from config
+
+
+class TraceStep(BaseModel):
+    title: str
+    tech: str
+    status: Literal["pending", "running", "done", "blocked", "failed", "skipped"]
+    summary: str
+    detail: dict[str, Any] = {}
+    ms: int = 0
+
+
+class CheckRow(BaseModel):
+    name: str
+    passed: bool
+    detail: str
+
+
+class Citation(BaseModel):
+    id: str
+    chunk_id: str
+    document_id: int
+    doc_name: str
+    version: int
+    page: int | None = None
+    section: str | None = None
+    source_location: str
+    quote: str
+    score: float
+
+
+class Evidence(BaseModel):
+    """One evidence block: a cited chunk with its supporting sentences highlighted."""
+
+    ref: int
+    chunk_id: str
+    document_id: int
+    doc_name: str
+    version: int
+    page: int | None = None
+    section: str | None = None
+    source_location: str
+    chunk_text: str
+    highlights: list[str]
+    score: float
+
+
+class AnswerSentence(BaseModel):
+    text: str
+    ids: list[str]
+    refs: list[int]
+    citations: list[Citation]
+
+
+class Confidence(BaseModel):
+    level: Literal["High", "Medium", "Low", "Exact"]
+    score: float | None = None
+    threshold: float | None = None
+    high_from: float | None = None
+    medium_from: float | None = None
+    reason: str
+
+
+class ClosestMatch(BaseModel):
+    doc_name: str
+    version: int
+    page: int | None = None
+    section: str | None = None
+    source_location: str
+    score: float | None = None
+    threshold: float
+
+
+class SqlResult(BaseModel):
+    query: str
+    columns: list[str]
+    rows: list[list[Any]]
+    truncated: bool
+    table: str
+    file: str
+    sheet: str | None = None
+    version: int
+    row_count: int
+    ms: int
+
+
+class AnswerPayload(BaseModel):
+    """`answer` event: the final answer after grounding."""
+
+    kind: Literal["text", "calculation", "refusal"]
+    found_in_document: bool
+    answer: str
+    sentences: list[AnswerSentence] = []
+    missing: str = ""
+    partial: bool = False
+    evidence: list[Evidence] = []
+    confidence: Confidence | None = None
+    checks: list[CheckRow] = []
+    closest: ClosestMatch | None = None
+    ai_called: bool
+    model: str
+    not_evaluated: bool = False
+    sql: SqlResult | None = None
+    question: str
+    standalone_question: str
+    trace_id: int | None = None
+    elapsed_ms: int = 0
+
+
+class TraceResponse(BaseModel):
+    id: int
+    created_at: str
+    question: str
+    standalone_question: str
+    route: str
+    outcome: str
+    model: str | None = None
+    steps: list[TraceStep]
+    answer: AnswerPayload | None = None
+    total_ms: int | None = None

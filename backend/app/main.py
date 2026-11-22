@@ -11,15 +11,18 @@ from typing import Callable
 import httpx
 from fastapi import APIRouter, FastAPI, Request
 
-from .api import documents
+from .answer.ask import AskService
+from .api import ask, documents
 from .api.openapi import register_models
 from .api.sse import EVENT_MODELS
 from .config import Config, get_config
 from .health import RerankerState, run_health_checks
 from .ingestion.pipeline import Embedder, Ingestor
 from .ingestion.versioning import check_embedding_model, reconcile
+from .logs.questions import ensure_columns
 from .ollama_client import OllamaClient
 from .reranker import Reranker, load_reranker
+from .retrieval.retriever import Retriever
 from .schemas import HealthResponse
 from .store.keyword import KeywordIndex
 from .store.sqlite import open_database
@@ -63,6 +66,11 @@ def create_app(
             reconcile(db, app.state.vectors.store)
         app.state.keyword_index = KeywordIndex(db)
         app.state.ingestor = Ingestor(cfg, db, app.state.vectors, embedder or app.state.ollama)
+        ensure_columns(db)
+        app.state.retriever = Retriever(cfg, db, app.state.vectors, app.state.keyword_index,
+                                        embedder or app.state.ollama, app.state.reranker_state.reranker,
+                                        app.state.ollama)
+        app.state.ask_service = AskService(cfg, db, app.state.retriever, app.state.ollama)
         try:
             yield
         finally:
@@ -72,6 +80,7 @@ def create_app(
     app = FastAPI(title="Evidex", version="0.2.0", lifespan=lifespan)
     app.include_router(router)
     app.include_router(documents.router)
+    app.include_router(ask.router)
     register_models(app, list(EVENT_MODELS.values()))
     return app
 

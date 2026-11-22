@@ -181,3 +181,53 @@ def env(config):
 
 def result_of(events):
     return next(e for e in events if e.event in ("result", "error"))
+
+
+class ScriptedLLM:
+    """chat_reply for FakeOllama: answers by the kind of call (from the JSON schema sent in
+    `format`). Each kind has a queue of replies (str or dict); the last one repeats."""
+
+    KINDS = {"found_in_document": "answer", "sql": "sql", "answer": "sql_answer", "supported": "claim",
+             "label": "route", "question": "rewrite"}
+
+    def __init__(self, **queues):
+        self.queues = {k: list(v) if isinstance(v, list) else [v] for k, v in queues.items()}
+        self.prompts: dict[str, list[str]] = {}
+
+    def kind(self, body) -> str:
+        props = (body.get("format") or {}).get("properties", {})
+        return next((k for key, k in self.KINDS.items() if key in props), "other")
+
+    def __call__(self, body):
+        kind = self.kind(body)
+        self.prompts.setdefault(kind, []).append(body["messages"][0]["content"])
+        q = self.queues.get(kind)
+        if not q:
+            raise AssertionError(f"unexpected {kind} call")
+        reply = q.pop(0) if len(q) > 1 else q[0]
+        if callable(reply):
+            reply = reply(body["messages"][0]["content"])
+        return reply if isinstance(reply, str) else json.dumps(reply)
+
+    def count(self, kind: str) -> int:
+        return len(self.prompts.get(kind, []))
+
+
+def sid(prompt: str, phrase: str) -> str:
+    """The [S#] id of the numbered source sentence that contains `phrase`."""
+    import re as _re
+    for m in _re.finditer(r"^\[(S\d+)\] (.*)$", prompt, _re.M):
+        if phrase in m.group(2):
+            return m.group(1)
+    raise AssertionError(f"{phrase!r} not among the numbered sentences")
+
+
+def answer_with(*parts, found=True, missing=""):
+    """Reply builder: parts are (text, phrase-or-id-list)."""
+    def build(prompt):
+        sentences = []
+        for text, ref in parts:
+            ids = ref if isinstance(ref, list) else [sid(prompt, ref)]
+            sentences.append({"text": text, "ids": ids})
+        return {"found_in_document": found, "sentences": sentences, "missing": missing}
+    return build
