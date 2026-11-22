@@ -19,6 +19,16 @@ documents any time, then rewrite `eval/testset.json` to match.
 | `broken/empty.txt` | TXT, 0 bytes | - | Rejected | Broken file: empty |
 | `broken/scanned_notice.pdf` | PDF, image only | - | Rejected | Broken file: scanned PDF, no text layer |
 
+## Small quick-test files (`small/`)
+
+Made by `eval\make_small_samples.py`, for a fast check after changing models or `.env`.
+
+| File | What it is |
+| --- | --- |
+| `small/smaller.pdf` | 2-page Warranty and Service Policy, for lookup questions (e.g. "What is the warranty period for electronics?" → 24 months, page 1) |
+| `small/store_sales.xlsx` | Sheet Sales, 12 rows: Store, City, Month, Revenue, Orders, for calculation questions |
+| `small/store_sales.sql` | The same 12 rows as a SQLite script, plus 4 check questions with their expected results. Not uploadable (Evidex rejects .sql); run it with `sqlite3 :memory: < store_sales.sql` to verify the app's calculated answers |
+
 ## Refund policy: v1 vs v2 (7 differing facts)
 
 | Fact | v1 | v2 |

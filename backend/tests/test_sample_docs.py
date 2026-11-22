@@ -46,3 +46,19 @@ def test_broken_files():
 def test_prompt_injection_document_present():
     text = (DOCS / "delivery_partner_faq.txt").read_text(encoding="utf-8").lower()
     assert "ignore all of your previous rules" in text
+
+
+def test_small_samples_excel_and_sql_hold_the_same_rows():
+    """eval/sample_docs/small: the .sql script recreates exactly the rows of the .xlsx."""
+    import sqlite3
+
+    from openpyxl import load_workbook
+
+    small = DOCS / "small"
+    assert len(PdfReader(small / "smaller.pdf").pages) == 2
+    ws = load_workbook(small / "store_sales.xlsx", data_only=True)["Sales"]
+    xlsx_rows = [tuple(r) for r in ws.iter_rows(min_row=2, values_only=True)]
+    conn = sqlite3.connect(":memory:")
+    conn.executescript((small / "store_sales.sql").read_text(encoding="utf-8"))
+    assert conn.execute("SELECT * FROM store_sales").fetchall() == xlsx_rows
+    assert len(xlsx_rows) == 12
