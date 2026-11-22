@@ -7,6 +7,7 @@ import psutil
 from fastapi import APIRouter, HTTPException, Request
 
 from ..config import ConfigError, config_path, get_config, load_config, parse_config
+from ..env import env_file_path
 from ..config_writer import set_value
 from ..ollama_client import OllamaError
 from ..schemas import ActionResult, ModelInfo, ModelList, SettingsResponse, SettingsSaved, SettingsUpdate
@@ -37,7 +38,11 @@ def _path(request: Request):
 async def get_settings(request: Request) -> SettingsResponse:
     p = _path(request)
     text = p.read_text(encoding="utf-8") if p.is_file() else ""
-    return SettingsResponse(config=_config_dict(request.app.state.config), yaml=text, path=str(p))
+    cfg = request.app.state.config
+    env = env_file_path()
+    return SettingsResponse(config=_config_dict(cfg), yaml=text, path=str(p), env_overrides=list(cfg.env_overrides),
+                            env_file=str(env) if env.is_file() else None, llm=cfg.llm.public(),
+                            embed=cfg.embed.public())
 
 
 @router.put("/settings", response_model=SettingsSaved)
@@ -79,6 +84,9 @@ async def put_settings(body: SettingsUpdate, request: Request) -> SettingsSaved:
         msg += " Re-run the evaluation after saving."
     if reindex:
         msg += " Re-index the documents so they use the new settings."
+    shadowed = [k for k in changed if k in s.config.env_overrides]
+    if shadowed:
+        msg += f" Note: .env still sets {', '.join(shadowed)}, and .env wins over config.yaml."
     return SettingsSaved(saved=True, changed=changed, rerun_evaluation=rerun, reindex_required=reindex, message=msg,
                          config=_config_dict(new_cfg))
 
@@ -109,7 +117,7 @@ async def models(request: Request) -> ModelList:
     s = request.app.state
     cfg = s.config
     try:
-        installed = await s.ollama.list_models()
+        installed = await s.llm.list_models()
     except OllamaError as exc:
         return ModelList(models=[], default=cfg.models.answer, error=str(exc))
     budget = psutil.virtual_memory().total / 1024 ** 3 - RESERVED_RAM_GB

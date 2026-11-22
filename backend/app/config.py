@@ -14,6 +14,8 @@ from typing import Annotated
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .env import EnvError, Endpoint, apply_overrides, endpoints, load_env_file
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "config.yaml"
 CONFIG_ENV_VAR = "EVIDEX_CONFIG"
@@ -129,6 +131,10 @@ class Config(_Section):
 
     # Directory the config file lives in; relative storage paths resolve against it.
     base_dir: Path = Field(default=REPO_ROOT, exclude=True)
+    # From .env / environment (app/env.py); never written to config.yaml or returned by the API.
+    llm_endpoint: Endpoint | None = Field(default=None, exclude=True)
+    embed_endpoint: Endpoint | None = Field(default=None, exclude=True)
+    env_overrides: tuple[str, ...] = Field(default=(), exclude=True)
 
     @model_validator(mode="after")
     def _confidence_order(self) -> "Config":
@@ -139,6 +145,16 @@ class Config(_Section):
                 "confidence.medium_from <= confidence.high_from"
             )
         return self
+
+    @property
+    def llm(self) -> Endpoint:
+        """Where answers, SQL, rewrites and labels are generated."""
+        return self.llm_endpoint or Endpoint(provider="ollama", base_url=self.ollama.base_url)
+
+    @property
+    def embed(self) -> Endpoint:
+        """Where embeddings are made (defaults to the answer endpoint)."""
+        return self.embed_endpoint or self.llm
 
     def resolve_path(self, p: str) -> Path:
         path = Path(p)
@@ -172,7 +188,10 @@ def parse_config(data: dict, base_dir: Path = REPO_ROOT) -> Config:
         raise ConfigError(_format_errors(exc)) from exc
 
 
-def load_config(path: Path | str | None = None) -> Config:
+def load_config(path: Path | str | None = None, *, use_env: bool = True) -> Config:
+    """Load config.yaml, then apply .env / environment overrides and endpoints."""
+    if use_env:
+        load_env_file()
     path = Path(path) if path is not None else config_path()
     if not path.is_file():
         raise ConfigError(f"Config file not found: {path}")
@@ -180,7 +199,28 @@ def load_config(path: Path | str | None = None) -> Config:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
         raise ConfigError(f"config.yaml is not valid YAML: {exc}") from exc
-    return parse_config(data, base_dir=path.resolve().parent)
+    if not use_env or not isinstance(data, dict):
+        return parse_config(data, base_dir=path.resolve().parent)
+    return with_env(data, dict(os.environ), base_dir=path.resolve().parent)
+
+
+def with_env(data: dict, env: dict[str, str], base_dir: Path = REPO_ROOT) -> Config:
+    """config.yaml data + environment -> validated Config with endpoints."""
+    try:
+        data, overridden = apply_overrides(data, env)
+        cfg = parse_config(data, base_dir=base_dir)
+        llm, emb = endpoints(env, cfg.ollama.base_url)
+    except EnvError as exc:
+        raise ConfigError(f"Invalid .env setting: {exc}") from exc
+    except ConfigError as exc:
+        raise ConfigError(f"{exc} (check .env overrides)" if any(k in env for k in _env_names()) else str(exc)) from exc
+    return cfg.model_copy(update={"llm_endpoint": llm, "embed_endpoint": emb, "env_overrides": tuple(overridden)})
+
+
+def _env_names():
+    from .env import OVERRIDES
+
+    return OVERRIDES.keys()
 
 
 @lru_cache(maxsize=1)

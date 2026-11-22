@@ -22,7 +22,7 @@ from .health import RerankerState, run_health_checks
 from .ingestion.pipeline import Embedder, Ingestor
 from .ingestion.versioning import check_embedding_model, reconcile
 from .logs.questions import ensure_columns
-from .ollama_client import OllamaClient
+from .llm import close_clients, make_clients
 from .reranker import Reranker, load_reranker
 from .retrieval.retriever import Retriever
 from .schemas import HealthResponse
@@ -38,7 +38,7 @@ router = APIRouter(prefix="/api")
 @router.get("/health", response_model=HealthResponse)
 async def health(request: Request) -> HealthResponse:
     s = request.app.state
-    return await run_health_checks(s.config, s.ollama, s.reranker_state, lambda: s.vectors)
+    return await run_health_checks(s.config, s.llm, s.reranker_state, lambda: s.vectors, s.embed_client)
 
 
 def build_services(app: FastAPI, cfg: Config) -> None:
@@ -48,12 +48,14 @@ def build_services(app: FastAPI, cfg: Config) -> None:
     s.config = cfg
     if old is None or old.reranker != cfg.reranker:
         s.reranker_state = RerankerState.load(cfg, s.reranker_loader)
-    if old is None or old.ollama != cfg.ollama or old.models != cfg.models:
-        s.ollama = OllamaClient(cfg, transport=s.ollama_transport)
-    embedder = s.embedder_override or s.ollama
+    if old is None or (old.ollama, old.models, old.llm, old.embed) != (cfg.ollama, cfg.models, cfg.llm, cfg.embed):
+        # Old clients are not closed here: a request may still be using them.
+        s.llm, s.embed_client = make_clients(cfg, transport=s.ollama_transport)
+        s.ollama = s.llm  # older name, kept for code that reads it
+    embedder = s.embedder_override or s.embed_client
     s.ingestor = Ingestor(cfg, s.db, s.vectors, embedder)
-    s.retriever = Retriever(cfg, s.db, s.vectors, s.keyword_index, embedder, s.reranker_state.reranker, s.ollama)
-    s.ask_service = AskService(cfg, s.db, s.retriever, s.ollama)
+    s.retriever = Retriever(cfg, s.db, s.vectors, s.keyword_index, embedder, s.reranker_state.reranker, s.llm)
+    s.ask_service = AskService(cfg, s.db, s.retriever, s.llm)
 
 
 def create_app(
@@ -90,7 +92,7 @@ def create_app(
         try:
             yield
         finally:
-            await s.ollama.aclose()
+            await close_clients(s.llm, s.embed_client)
             db.close()
 
     app = FastAPI(title="Evidex", version="1.0.0", lifespan=lifespan)

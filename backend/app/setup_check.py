@@ -26,7 +26,8 @@ import psutil
 from .answer.schema import ANSWER_SCHEMA
 from .config import REPO_ROOT, Config, load_config
 from .health import RerankerState, check_models, check_vector_store
-from .ollama_client import OllamaClient, OllamaError
+from .llm import close_clients, make_clients
+from .ollama_client import OllamaError
 from .reranker import load_reranker
 from .store.vectors import open_vector_store
 
@@ -125,15 +126,28 @@ def _answer_messages(config: Config) -> list[dict[str, str]]:
     return [{"role": "user", "content": prompt}]
 
 
+class _Clients:
+    """(chat client, embedding client) from config + .env, closed on exit."""
+
+    def __init__(self, config: Config):
+        self.clients = make_clients(config)
+
+    async def __aenter__(self):
+        return self.clients
+
+    async def __aexit__(self, *exc):
+        await close_clients(*self.clients)
+
+
 async def run(config: Config, *, write: bool = True) -> Report:
     report = Report()
     idle_used = system_used_bytes()
     total = psutil.virtual_memory().total
 
-    async with OllamaClient(config) as ollama:
-        reach, answer_ok, embed_ok = await check_models(config, ollama)
+    async with _Clients(config) as (ollama, embedder):
+        reach, answer_ok, embed_ok = await check_models(config, ollama, embedder)
         report.checks += [
-            ("Ollama reachable", reach.ok, reach.detail),
+            (f"{ollama.label} reachable", reach.ok, reach.detail),
             (f"Answer model `{config.models.answer}` pulled", answer_ok.ok, answer_ok.detail),
             (f"Embedding model `{config.models.embedding}` pulled", embed_ok.ok, embed_ok.detail),
         ]
@@ -156,20 +170,21 @@ async def run(config: Config, *, write: bool = True) -> Report:
         ]
 
         if not (reach.ok and answer_ok.ok and embed_ok.ok):
-            report.warnings.append("Ollama or a model is missing; speed and RAM during an answer were not measured.")
+            report.warnings.append("The model server or a model is missing; speed and RAM during an answer were not "
+                                   "measured.")
             return _finish(report, config, write)
 
         with PeakSampler() as full_question:
             # Embedding speed: one batch of document chunks, then one query.
             chunks = _passages(config, config.ingestion.embed_batch_size)
             t = time.perf_counter()
-            await ollama.embed_documents(chunks)  # first call also loads the model
+            await embedder.embed_documents(chunks)  # first call also loads the model
             cold_embed = time.perf_counter() - t
             t = time.perf_counter()
-            await ollama.embed_documents(chunks)
+            await embedder.embed_documents(chunks)
             warm_embed = time.perf_counter() - t
             t = time.perf_counter()
-            await ollama.embed_query("Who approves refunds above the store limit?")
+            await embedder.embed_query("Who approves refunds above the store limit?")
             query_ms = (time.perf_counter() - t) * 1000
             report.numbers += [
                 (f"Embedding: {len(chunks)} chunks of ~{config.ingestion.chunk_size_tokens} tokens, cold", f"{cold_embed:.2f} s"),

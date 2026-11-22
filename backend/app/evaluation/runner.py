@@ -21,7 +21,7 @@ from ..answer.schema import REFUSAL_PHRASE
 from ..config import REPO_ROOT, Config, StorageConfig
 from ..grounding.normalise import normalise_number, numbers_and_dates
 from ..ingestion.pipeline import Ingestor
-from ..ollama_client import OllamaClient
+from ..llm import close_clients, make_clients
 from ..retrieval.retriever import Retriever
 from ..setup_check import GB, PeakSampler
 from ..store.keyword import KeywordIndex
@@ -265,9 +265,9 @@ async def run_suite(config: Config, *, label: str, reranker_obj=None, cases: lis
     work = work_root / datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     work.mkdir(parents=True, exist_ok=True)
     cfg = variant(config, work)
-    own_llm = llm is None
-    llm = llm or OllamaClient(cfg)
-    embedder = embedder or llm
+    own = [] if llm is not None and embedder is not None else list(make_clients(cfg))
+    llm = llm or own[0]
+    embedder = embedder or (own[1] if own else llm)
     db = Database(cfg.sqlite_path)
     vectors = VectorStore(open_vector_store(cfg))
     ingestor = Ingestor(cfg, db, vectors, embedder)
@@ -291,8 +291,7 @@ async def run_suite(config: Config, *, label: str, reranker_obj=None, cases: lis
                          round(time.perf_counter() - t0, 1))
     finally:
         db.close()
-        if own_llm:
-            await llm.aclose()
+        await close_clients(*own)
         shutil.rmtree(work, ignore_errors=True)
 
 

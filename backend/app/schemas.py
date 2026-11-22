@@ -15,6 +15,8 @@ class CheckResult(BaseModel):
 
 class HealthResponse(BaseModel):
     ok: bool
+    provider: str = "Ollama"  # where answers come from, e.g. "OpenAI-compatible · localhost:1234"
+    embed_provider: str = "Ollama"
     ollama: CheckResult
     answer_model: CheckResult
     embedding_model: CheckResult
@@ -409,10 +411,21 @@ class ActivityList(BaseModel):
 # -- settings, models ------------------------------------------------------------------------------
 
 
+class EndpointInfo(BaseModel):
+    provider: str
+    base_url: str
+    label: str
+    api_key_set: bool
+
+
 class SettingsResponse(BaseModel):
     config: dict[str, Any]
     yaml: str
     path: str
+    env_overrides: list[str] = []  # dotted keys set in .env / environment (they win over config.yaml)
+    env_file: str | None = None
+    llm: EndpointInfo | None = None
+    embed: EndpointInfo | None = None
 
 
 class SettingsUpdate(BaseModel):

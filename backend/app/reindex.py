@@ -15,7 +15,7 @@ import sys
 import time
 
 from .config import Config, load_config
-from .ollama_client import OllamaClient
+from .llm import close_clients, make_clients
 from .store.sqlite import Database, open_database
 from .store.vectors import VectorStore, chunk_metadata, open_vector_store
 
@@ -57,8 +57,11 @@ async def _main(config: Config) -> dict[str, int]:
     db = open_database(config)
     vectors = VectorStore(open_vector_store(config))
     try:
-        async with OllamaClient(config) as ollama:
-            return await reindex(config, db, vectors, ollama)
+        llm, embedder = make_clients(config)
+        try:
+            return await reindex(config, db, vectors, embedder)
+        finally:
+            await close_clients(llm, embedder)
     finally:
         db.close()
 

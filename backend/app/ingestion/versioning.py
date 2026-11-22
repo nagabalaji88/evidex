@@ -80,8 +80,10 @@ def check_embedding_model(db: Database, config: Config) -> None:
     stored = db.get_meta("embedding_model")
     if stored is not None and stored != config.models.embedding:
         raise EmbeddingModelMismatch(
-            f"The index was built with embedding model '{stored}', but config.yaml says "
-            f"'{config.models.embedding}'. Run: cd backend; .venv\\Scripts\\python -m app.reindex"
+            f"The index was built with embedding model '{stored}', but the settings now say "
+            f"'{config.models.embedding}'" + (" (set in .env)" if "models.embedding" in config.env_overrides
+                                              else " (config.yaml)")
+            + ". Run: cd backend; .venv\\Scripts\\python -m app.reindex, or switch the model back."
         )
 
 

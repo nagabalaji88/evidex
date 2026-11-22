@@ -30,6 +30,7 @@ export default function Settings() {
     getJSON<ModelList>("/api/models").then(setModels).catch(() => undefined);
   }, []);
 
+  const envKeys = server?.env_overrides ?? [];
   const changed = useMemo(() => FIELDS.map((f) => f.key).filter((k) => String(vals[k]) !== String(saved[k])), [vals, saved]);
   const risky = changed.filter((k) => RISKY.includes(k));
   const problems = useMemo(() => (Object.keys(vals).length ? validate(vals) : []), [vals]);
@@ -122,13 +123,15 @@ export default function Settings() {
                     ctl = <input type="number" id={id} value={v === undefined ? "" : String(v)}
                       onChange={(e) => set(f.key, e.target.value === "" ? "" : Number(e.target.value))} />;
                   }
+                  const fromEnv = envKeys.includes(f.key);
                   return (
                     <div key={f.key} className="srow">
                       <div>
-                        <label htmlFor={id}><b>{f.label}{changed.includes(f.key) ? <span className="chg">Changed</span> : null}</b></label>
+                        <label htmlFor={id}><b>{f.label}{changed.includes(f.key) ? <span className="chg">Changed</span> : null}
+                          {fromEnv ? <span className="chg" title="Set in .env, which wins over config.yaml">Set in .env</span> : null}</b></label>
                         <small>{f.help}</small>
                       </div>
-                      <div>{ctl}</div>
+                      <fieldset disabled={fromEnv} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>{ctl}</fieldset>
                     </div>
                   );
                 })}
@@ -139,6 +142,16 @@ export default function Settings() {
         <aside className="card sticky stack">
           <div><h2>config.yaml</h2><p className="cs">{changed.length ? `${changed.length} unsaved change${changed.length > 1 ? "s" : ""}` : "No unsaved changes"}</p></div>
           <pre style={{ maxHeight: 360, overflow: "auto" }}>{yaml}</pre>
+          {server.llm ? (
+            <div>
+              <div className="lbl">Model servers</div>
+              <ul className="lst">
+                <li><span>Answers</span><b style={{ fontWeight: 500, textAlign: "right" }}>{server.llm.label}{server.llm.api_key_set ? " · key set" : ""}</b></li>
+                <li><span>Embeddings</span><b style={{ fontWeight: 500, textAlign: "right" }}>{server.embed?.label}{server.embed?.api_key_set ? " · key set" : ""}</b></li>
+              </ul>
+              <p className="note">{server.env_file ? "Set in .env. " : "From config.yaml. "}Servers and API keys are changed in .env, then restart the API.</p>
+            </div>
+          ) : null}
           {problems.length ? <div className="callout bad" role="alert">{problems.map((p) => <div key={p}>{p}</div>)}</div> : null}
           {error ? <div className="callout bad" role="alert">Not saved: {error}</div> : null}
           {risky.length ? (

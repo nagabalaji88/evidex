@@ -1447,6 +1447,34 @@
         ],
         "title": "DocumentSummary"
       },
+      "EndpointInfo": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "base_url": {
+            "type": "string",
+            "title": "Base Url"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "api_key_set": {
+            "type": "boolean",
+            "title": "Api Key Set"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "base_url",
+          "label",
+          "api_key_set"
+        ],
+        "title": "EndpointInfo"
+      },
       "EvalCase": {
         "properties": {
           "id": {
@@ -1776,6 +1804,16 @@
             "type": "boolean",
             "title": "Ok"
           },
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "default": "Ollama"
+          },
+          "embed_provider": {
+            "type": "string",
+            "title": "Embed Provider",
+            "default": "Ollama"
+          },
           "ollama": {
             "$ref": "#/components/schemas/CheckResult"
           },
@@ -1985,6 +2023,45 @@
           "path": {
             "type": "string",
             "title": "Path"
+          },
+          "env_overrides": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Env Overrides",
+            "default": []
+          },
+          "env_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Env File"
+          },
+          "llm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EndpointInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "embed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EndpointInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

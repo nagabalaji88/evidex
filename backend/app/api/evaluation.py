@@ -55,7 +55,7 @@ async def run_eval(request: Request, body: EvalRunRequest | None = None):
                                                        "detail": f"Test {n} of {total} · {case['category']}"}))
 
                     runs.append(await run_suite(vcfg, label=label, reranker_obj=s.reranker_state.reranker,
-                                                progress=progress, llm=s.ollama, embedder=s.ingestor.embedder))
+                                                progress=progress, llm=s.llm, embedder=s.ingestor.embedder))
                 main = runs[0]
                 thr = cfg.retrieval.relevance_threshold if cfg.reranker.enabled else cfg.retrieval.vector_threshold
                 rep = report_dict(main, runs[1:], threshold_sweep(main.cases, thr))

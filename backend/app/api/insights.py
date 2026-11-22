@@ -57,7 +57,7 @@ async def stats(request: Request, days: int = 7) -> Stats:
         for name in json.loads(r["cited_documents"] or "[]"):
             cited[name] += 1
     gaps = Counter(r["question"].strip() for r in q if _result(r["outcome"]) == "refused")
-    health = await run_health_checks(s.config, s.ollama, s.reranker_state, lambda: s.vectors)
+    health = await run_health_checks(s.config, s.llm, s.reranker_state, lambda: s.vectors, s.embed_client)
     last_eval, peak = None, None
     p = latest_path(s.config)
     if p.is_file():

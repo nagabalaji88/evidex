@@ -15,6 +15,7 @@ The UI must match design/reference-ui.html (open it, do not guess).
 
 ## Commands
 - Backend venv: backend\.venv (create with python -m venv)
+- Model servers and API keys: .env (copy .env.example; git-ignored). Local by default; remote hosts need EVIDEX_ALLOW_REMOTE=true
 - Backend tests: cd backend; .venv\Scripts\python -m pytest -q
 - Setup check (M1, writes docs/benchmarks.md): cd backend; .venv\Scripts\python -m app.setup_check
 - Re-index (after changing the embedding model; stop the API first): cd backend; .venv\Scripts\python -m app.reindex

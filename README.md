@@ -47,6 +47,20 @@ claude
 
 Then follow `docs/claude-code-guide.md`, starting with `/milestone 1`.
 
+## Models, servers and API keys (.env)
+
+Copy `.env.example` to `.env` (git-ignored) to change where models run, without touching code:
+local Ollama (default), or any OpenAI-compatible server such as LM Studio, llama.cpp, vLLM or
+LocalAI, with an optional API key. Chat and embeddings can use different servers. Values in
+`.env` override `config.yaml`; the Settings page marks them "Set in .env". Public internet
+hosts are refused unless you set `EVIDEX_ALLOW_REMOTE=true`, because that sends your documents'
+text to that service. Restart the API after editing `.env`; changing the embedding model
+needs a re-index.
+
+```powershell
+Copy-Item .env.example .env
+```
+
 ## Running
 
 ```powershell

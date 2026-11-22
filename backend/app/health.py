@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from .config import Config
-from .ollama_client import OllamaClient, OllamaError, model_name_matches
+from .ollama_client import ModelClient, OllamaError, model_name_matches
 from .reranker import Reranker
 from .schemas import CheckResult, HealthResponse
 
@@ -43,23 +43,42 @@ class RerankerState:
         return CheckResult(ok=False, detail=f"{self.model_name} failed to load: {self.error}")
 
 
-async def check_models(config: Config, ollama: OllamaClient) -> tuple[CheckResult, CheckResult, CheckResult]:
-    """Returns (ollama reachable, answer model pulled, embedding model pulled)."""
+async def check_models(config: Config, llm: ModelClient,
+                       embedder: ModelClient | None = None) -> tuple[CheckResult, CheckResult, CheckResult]:
+    """Returns (model server reachable, answer model available, embedding model available).
+    The embedding model is checked on the embedding endpoint when that is separate."""
+    embedder = embedder or llm
     try:
-        models = await ollama.list_models()
+        models = await llm.list_models()
     except OllamaError as exc:
-        down = CheckResult(ok=False, detail="not checked: Ollama is unreachable")
-        return CheckResult(ok=False, detail=str(exc)), down, down
+        down = CheckResult(ok=False, detail=f"not checked: {llm.label} is unreachable")
+        emb = down if embedder is llm else await _available(config.models.embedding, embedder)
+        return CheckResult(ok=False, detail=str(exc)), down, emb
     names = [m.get("name") or m.get("model", "") for m in models]
-    reach = CheckResult(ok=True, detail=f"{config.ollama.base_url} ({len(names)} models installed)")
+    reach = CheckResult(ok=True, detail=f"{llm.label} at {llm.endpoint.base_url} ({len(names)} models available)")
+    answer = _match(config.models.answer, names, llm)
+    emb = _match(config.models.embedding, names, llm) if embedder is llm else \
+        await _available(config.models.embedding, embedder)
+    return reach, answer, emb
 
-    def pulled(wanted: str) -> CheckResult:
-        hit = next((n for n in names if model_name_matches(wanted, n)), None)
-        if hit:
-            return CheckResult(ok=True, detail=f"{hit} is pulled")
+
+def _match(wanted: str, names: list[str], client: ModelClient) -> CheckResult:
+    hit = next((n for n in names if model_name_matches(wanted, n)), None)
+    if hit:
+        return CheckResult(ok=True, detail=f"{hit} is available" if client.endpoint.provider == "openai"
+                           else f"{hit} is pulled")
+    if client.endpoint.provider == "ollama":
         return CheckResult(ok=False, detail=f"{wanted} is not pulled. Run: ollama pull {wanted}")
+    return CheckResult(ok=False, detail=f"{wanted} is not offered by {client.label}. Load it in the server, or set "
+                                        "the model name in .env")
 
-    return reach, pulled(config.models.answer), pulled(config.models.embedding)
+
+async def _available(wanted: str, client: ModelClient) -> CheckResult:
+    try:
+        names = [m.get("name") or m.get("model", "") for m in await client.list_models()]
+    except OllamaError as exc:
+        return CheckResult(ok=False, detail=f"embedding endpoint: {exc}")
+    return _match(wanted, names, client)
 
 
 def check_vector_store(open_store: Callable[[], object]) -> CheckResult:
@@ -73,16 +92,17 @@ def check_vector_store(open_store: Callable[[], object]) -> CheckResult:
 
 async def run_health_checks(
     config: Config,
-    ollama: OllamaClient,
+    ollama: ModelClient,
     reranker_state: RerankerState,
     open_store: Callable[[], object],
+    embedder: ModelClient | None = None,
 ) -> HealthResponse:
-    reach, answer, embedding = await check_models(config, ollama)
+    reach, answer, embedding = await check_models(config, ollama, embedder)
     rerank = reranker_state.check()
     store = check_vector_store(open_store)
     if store.ok:
         store = CheckResult(ok=True, detail=f"{config.vector_store_path} opens")
     ok = all(c.ok for c in (reach, answer, embedding, rerank, store))
     return HealthResponse(
-        ok=ok, ollama=reach, answer_model=answer, embedding_model=embedding, reranker=rerank, vector_store=store
+        ok=ok, provider=ollama.label, embed_provider=(embedder or ollama).label, ollama=reach, answer_model=answer, embedding_model=embedding, reranker=rerank, vector_store=store
     )

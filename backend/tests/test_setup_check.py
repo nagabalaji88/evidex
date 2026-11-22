@@ -16,9 +16,11 @@ from .conftest import FakeOllama, FakeReranker
 def patched(monkeypatch):
     def use(fake: FakeOllama):
         monkeypatch.setattr(setup_check, "load_reranker", FakeReranker)
-        monkeypatch.setattr(
-            setup_check, "OllamaClient", lambda cfg: OllamaClient(cfg, transport=fake.transport)
-        )
+        def clients(cfg):
+            c = OllamaClient(cfg, transport=fake.transport)
+            return c, c
+
+        monkeypatch.setattr(setup_check, "make_clients", clients)
 
     return use
 

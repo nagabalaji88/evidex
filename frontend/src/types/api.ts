@@ -587,6 +587,17 @@ export interface components {
             /** Updated At */
             updated_at: string;
         };
+        /** EndpointInfo */
+        EndpointInfo: {
+            /** Provider */
+            provider: string;
+            /** Base Url */
+            base_url: string;
+            /** Label */
+            label: string;
+            /** Api Key Set */
+            api_key_set: boolean;
+        };
         /** EvalCase */
         EvalCase: {
             /** Id */
@@ -729,6 +740,16 @@ export interface components {
         HealthResponse: {
             /** Ok */
             ok: boolean;
+            /**
+             * Provider
+             * @default Ollama
+             */
+            provider: string;
+            /**
+             * Embed Provider
+             * @default Ollama
+             */
+            embed_provider: string;
             ollama: components["schemas"]["CheckResult"];
             answer_model: components["schemas"]["CheckResult"];
             embedding_model: components["schemas"]["CheckResult"];
@@ -798,6 +819,15 @@ export interface components {
             yaml: string;
             /** Path */
             path: string;
+            /**
+             * Env Overrides
+             * @default []
+             */
+            env_overrides: string[];
+            /** Env File */
+            env_file?: string | null;
+            llm?: components["schemas"]["EndpointInfo"] | null;
+            embed?: components["schemas"]["EndpointInfo"] | null;
         };
         /** SettingsSaved */
         SettingsSaved: {

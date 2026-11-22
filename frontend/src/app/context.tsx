@@ -71,7 +71,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 export function runtimeProblem(health: HealthResponse | null, healthError: string | null): string | null {
   if (healthError) return healthError;
   if (!health) return null;
-  if (!health.ollama.ok) return "Ollama is not running. Start it with: ollama serve";
+  if (!health.ollama.ok) {
+    return health.provider === "Ollama" ? "Ollama is not running. Start it with: ollama serve"
+      : `${health.provider} is not reachable. Start the server or check EVIDEX_LLM_BASE_URL in .env`;
+  }
   if (!health.answer_model.ok) return health.answer_model.detail;
   if (!health.embedding_model.ok) return health.embedding_model.detail;
   if (!health.reranker.ok) return health.reranker.detail;

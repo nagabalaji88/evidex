@@ -231,3 +231,13 @@ def answer_with(*parts, found=True, missing=""):
             sentences.append({"text": text, "ids": ids})
         return {"found_in_document": found, "sentences": sentences, "missing": missing}
     return build
+
+
+@pytest.fixture(autouse=True)
+def _no_real_env(monkeypatch, tmp_path_factory):
+    """Tests never read a developer's real .env or EVIDEX_* variables."""
+    import os
+    monkeypatch.setenv("EVIDEX_ENV_FILE", str(tmp_path_factory.getbasetemp() / "no-such.env"))
+    for k in list(os.environ):
+        if k.startswith("EVIDEX_") and k != "EVIDEX_ENV_FILE":
+            monkeypatch.delenv(k, raising=False)

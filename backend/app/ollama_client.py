@@ -15,10 +15,14 @@ from typing import Any
 import httpx
 
 from .config import Config
+from .env import Endpoint
 
 
 class OllamaError(RuntimeError):
-    """Ollama is unreachable, timed out, or returned an error."""
+    """The model server is unreachable, timed out, refused the key, or returned an error."""
+
+
+LLMError = OllamaError
 
 
 @dataclass(frozen=True)
@@ -49,23 +53,58 @@ def model_name_matches(wanted: str, installed: str) -> bool:
     return False
 
 
-class OllamaClient:
-    def __init__(self, config: Config, transport: httpx.AsyncBaseTransport | None = None):
-        self.config = config
-        self._client = httpx.AsyncClient(
-            base_url=config.ollama.base_url,
-            timeout=httpx.Timeout(config.ollama.timeout_seconds),
-            transport=transport,
-        )
+class ModelClient:
+    """Shared by both providers: embedding prefixes, batching, context manager."""
+
+    config: Config
+    endpoint: Endpoint
+    _client: httpx.AsyncClient
+
+    def _http(self, endpoint: Endpoint, transport) -> httpx.AsyncClient:
+        return httpx.AsyncClient(base_url=endpoint.base_url, timeout=httpx.Timeout(self.config.ollama.timeout_seconds),
+                                 transport=transport, headers=endpoint.headers())
+
+    @property
+    def label(self) -> str:
+        return self.endpoint.label
 
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def __aenter__(self) -> "OllamaClient":
+    async def __aenter__(self):
         return self
 
     async def __aexit__(self, *exc) -> None:
         await self.aclose()
+
+    async def embed(self, texts: list[str], *, model: str | None = None) -> list[list[float]]:
+        raise NotImplementedError
+
+    async def embed_documents(self, chunks: list[str]) -> list[list[float]]:
+        """Embed chunks with the document prefix, in batches of ingestion.embed_batch_size."""
+        prefix = self.config.models.embedding_doc_prefix
+        size = self.config.ingestion.embed_batch_size
+        out: list[list[float]] = []
+        for i in range(0, len(chunks), size):
+            out.extend(await self.embed([prefix + c for c in chunks[i : i + size]]))
+        return out
+
+    async def embed_query(self, question: str) -> list[float]:
+        return (await self.embed([self.config.models.embedding_query_prefix + question]))[0]
+
+    def _status_error(self, resp: httpx.Response) -> OllamaError:
+        if resp.status_code in (401, 403):
+            return OllamaError(f"{self.endpoint.label} refused the request (HTTP {resp.status_code}): check the API "
+                               "key in .env")
+        return OllamaError(f"{self.endpoint.label} returned HTTP {resp.status_code}: {resp.text[:300]}")
+
+
+class OllamaClient(ModelClient):
+    def __init__(self, config: Config, transport: httpx.AsyncBaseTransport | None = None,
+                 endpoint: Endpoint | None = None):
+        self.config = config
+        self.endpoint = endpoint or config.llm
+        self._client = self._http(self.endpoint, transport)
 
     # -- low level -----------------------------------------------------------------------
 
@@ -83,9 +122,9 @@ class OllamaClient:
                 f"Ollama did not answer within {self.config.ollama.timeout_seconds:g} s"
             ) from exc
         except httpx.HTTPError as exc:
-            raise OllamaError(f"Cannot reach Ollama at {self.config.ollama.base_url}: {exc}") from exc
+            raise OllamaError(f"Cannot reach Ollama at {self.endpoint.base_url}: {exc}") from exc
         if resp.status_code != 200:
-            raise OllamaError(f"Ollama returned HTTP {resp.status_code}: {resp.text[:300]}")
+            raise self._status_error(resp)
         return resp.json()
 
     # -- API -------------------------------------------------------------------------------
@@ -94,9 +133,9 @@ class OllamaClient:
         try:
             resp = await self._client.get("/api/tags")
         except httpx.HTTPError as exc:
-            raise OllamaError(f"Cannot reach Ollama at {self.config.ollama.base_url}: {exc}") from exc
+            raise OllamaError(f"Cannot reach Ollama at {self.endpoint.base_url}: {exc}") from exc
         if resp.status_code != 200:
-            raise OllamaError(f"Ollama returned HTTP {resp.status_code}")
+            raise self._status_error(resp)
         return resp.json().get("models", [])
 
     async def chat(
@@ -144,15 +183,3 @@ class OllamaClient:
         if not isinstance(vectors, list) or len(vectors) != len(texts):
             raise OllamaError("Ollama returned an unexpected embedding response")
         return vectors
-
-    async def embed_documents(self, chunks: list[str]) -> list[list[float]]:
-        """Embed chunks with the document prefix, in batches of ingestion.embed_batch_size."""
-        prefix = self.config.models.embedding_doc_prefix
-        size = self.config.ingestion.embed_batch_size
-        out: list[list[float]] = []
-        for i in range(0, len(chunks), size):
-            out.extend(await self.embed([prefix + c for c in chunks[i : i + size]]))
-        return out
-
-    async def embed_query(self, question: str) -> list[float]:
-        return (await self.embed([self.config.models.embedding_query_prefix + question]))[0]
