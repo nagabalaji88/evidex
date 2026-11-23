@@ -13,6 +13,55 @@ export interface UiStep {
   summary?: string;
   body?: ReactNode;
   keepOpen?: boolean;
+  ms?: number;
+}
+
+const fmtMs = (ms?: number) => (ms === undefined ? "" : ms < 1 ? "<1 ms" : ms < 10000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
+
+/** Question steps as accordion cards: a dot on each card's edge, joined by a connector line.
+ *  The running step has a light circling its border and running down the line. */
+function StepCards({ steps, done }: { steps: UiStep[]; done: boolean }) {
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  const live = !done && steps.some((s) => s.status === "active");
+  return (
+    <ol className="flow cards">
+      <li className="sc-rail" aria-hidden="true">{live ? <i /> : null}</li>
+      {steps.map((st, i) => {
+        const icon = st.status === "done" ? I.ok : st.status === "failed" ? I.x : st.status === "blocked" ? I.bang : null;
+        let sum = st.summary ?? "";
+        if (st.status === "active" && !sum) sum = "Working…";
+        if (st.status === "skipped") sum = "Not needed. The agent stopped before this step.";
+        if (st.status === "pending") sum = "";
+        const canOpen = (!!st.body || !!st.tech) && st.status !== "pending" && st.status !== "skipped";
+        const defaultOpen = st.status === "failed" || st.status === "blocked";
+        const open = canOpen && (toggled[st.key] ?? defaultOpen);
+        return (
+          <li key={st.key} className={`sc ${st.status}${open ? " open" : ""}`} data-i={i}>
+            <span className="sc-dot">{icon}</span>
+            <button type="button" className="sc-h" aria-expanded={open} disabled={!canOpen}
+              onClick={() => setToggled((t) => ({ ...t, [st.key]: !open }))}>
+              <span className="tt">
+                <b><em>{String(i + 1).padStart(2, "0")}</em>{st.title}</b>
+                {sum ? <span className="sum">{sum}</span> : null}
+              </span>
+              {st.status !== "active" && st.ms !== undefined ? <span className="sc-ms">{fmtMs(st.ms)}</span> : null}
+              {canOpen ? <span className="chev">{I.chev}</span> : null}
+            </button>
+            {canOpen ? (
+              <div className="sc-coll" inert={!open}>
+                <div>
+                  <div className="sc-b">
+                    {st.tech ? <span className="sc-tech">{st.tech}</span> : null}
+                    {st.body ? <div className="sb">{st.body}</div> : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
 }
 
 export function Checks({ items }: { items: { kind: "ok" | "bad" | "warn"; k: string; v: string }[] }) {
@@ -43,13 +92,14 @@ export function Trace({ steps, kind, done, empty }: {
   const blocked = steps.some((s) => s.status === "blocked");
   return (
     <>
+      {kind === "question" ? <StepCards steps={steps} done={done} /> : (
       <ol className="flow">
         {steps.map((st, i) => {
           const icon = st.status === "done" ? I.ok : st.status === "failed" ? I.x : st.status === "blocked" ? I.bang : null;
           let sum = st.summary ?? "";
           if (st.status === "active" && !sum) sum = "Working…";
           if (st.status === "skipped") {
-            sum = kind === "question" ? "Not needed. The agent stopped before this step." : "Skipped. The file was stopped earlier.";
+            sum = "Skipped. The file was stopped earlier.";
           }
           if (st.status === "pending") sum = "";
           const hasBody = !!st.body && st.status !== "pending" && st.status !== "skipped";
@@ -72,6 +122,7 @@ export function Trace({ steps, kind, done, empty }: {
           );
         })}
       </ol>
+      )}
       {done ? (
         <p className="tr-foot">
           {failed
@@ -268,6 +319,7 @@ export function questionSteps(steps: TraceStep[], running?: { title: string } | 
     status: (s.status === "running" ? "active" : s.status) as StepStatus,
     summary: s.summary,
     body: questionStepBody(s, steps),
+    ms: s.status === "running" ? undefined : s.ms,
     keepOpen: ["Ranking by relevance", "Is the answer in the documents?", "Checking the evidence", "Answer ready",
       "Writing the query", "Safety checks", "Checking the number"].includes(s.title),
   }));

@@ -8,7 +8,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    proxy: { "/api": { target: "http://localhost:8000", changeOrigin: false } },
+    // EVIDEX_API_URL lets a second checkout point at its own API on another port.
+    proxy: { "/api": { target: process.env.EVIDEX_API_URL ?? "http://localhost:8000", changeOrigin: false } },
   },
   test: { environment: "jsdom" },
 });
