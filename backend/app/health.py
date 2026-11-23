@@ -51,7 +51,8 @@ async def check_models(config: Config, llm: ModelClient,
     try:
         models = await llm.list_models()
     except OllamaError as exc:
-        down = CheckResult(ok=False, detail=f"not checked: {llm.label} is unreachable")
+        why = str(exc) if llm.endpoint.provider == "gemini" else f"{llm.label} is unreachable"
+        down = CheckResult(ok=False, detail=f"not checked: {why}")
         emb = down if embedder is llm else await _available(config.models.embedding, embedder)
         return CheckResult(ok=False, detail=str(exc)), down, emb
     names = [m.get("name") or m.get("model", "") for m in models]
@@ -65,10 +66,13 @@ async def check_models(config: Config, llm: ModelClient,
 def _match(wanted: str, names: list[str], client: ModelClient) -> CheckResult:
     hit = next((n for n in names if model_name_matches(wanted, n)), None)
     if hit:
-        return CheckResult(ok=True, detail=f"{hit} is available" if client.endpoint.provider == "openai"
-                           else f"{hit} is pulled")
+        return CheckResult(ok=True, detail=f"{hit} is pulled" if client.endpoint.provider == "ollama"
+                           else f"{hit} is available")
     if client.endpoint.provider == "ollama":
         return CheckResult(ok=False, detail=f"{wanted} is not pulled. Run: ollama pull {wanted}")
+    if client.endpoint.provider == "gemini":
+        return CheckResult(ok=False, detail=f"{wanted} is not available to this Gemini API key. Pick another model "
+                                            "in Settings")
     return CheckResult(ok=False, detail=f"{wanted} is not offered by {client.label}. Load it in the server, or set "
                                         "the model name in .env")
 

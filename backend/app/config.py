@@ -6,6 +6,7 @@ code base should contain those values.
 
 from __future__ import annotations
 
+import fnmatch
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -14,7 +15,7 @@ from typing import Annotated
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .env import EnvError, Endpoint, apply_overrides, endpoints, load_env_file
+from .env import EnvError, Endpoint, apply_overrides, endpoints, gemini_api_key, load_env_file
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "config.yaml"
@@ -27,6 +28,43 @@ PositiveInt = Annotated[int, Field(gt=0)]
 class _Section(BaseModel):
     # Unknown keys are refused, so a typo in config.yaml is an error, not a silent default.
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class ProviderConfig(_Section):
+    use_local_models: bool  # the Settings toggle: False = Google Gemini API, True = local models
+
+
+class GeminiConfig(_Section):
+    base_url: str = Field(min_length=1)    # OpenAI-compatible endpoint (chat, embeddings)
+    models_url: str = Field(min_length=1)  # native model list
+    answer_model: str = Field(min_length=1)
+    embedding_model: str = Field(min_length=1)
+    free_tier_only: bool
+    free_tier_models: list[str]
+    reasoning_effort: str
+    max_output_tokens: PositiveInt
+    rate_limit_retries: Annotated[int, Field(ge=0, le=10)]
+    rate_limit_wait_seconds: Annotated[float, Field(gt=0, le=120)]
+
+    @field_validator("base_url", "models_url")
+    @classmethod
+    def _https(cls, v: str) -> str:
+        if not v.startswith("https://"):
+            raise ValueError("Gemini URLs must start with https://")
+        return v.rstrip("/")
+
+    def is_free_tier(self, model: str) -> bool:
+        name = model.removeprefix("models/")
+        return any(fnmatch.fnmatchcase(name, pattern) for pattern in self.free_tier_models)
+
+    @model_validator(mode="after")
+    def _free_models_only(self) -> "GeminiConfig":
+        if self.free_tier_only:
+            for key in ("answer_model", "embedding_model"):
+                if not self.is_free_tier(getattr(self, key)):
+                    raise ValueError(f"gemini.{key} '{getattr(self, key)}' has no free tier. Pick a model from "
+                                     "gemini.free_tier_models, or set gemini.free_tier_only to false")
+        return self
 
 
 class ModelsConfig(_Section):
@@ -118,6 +156,8 @@ class StorageConfig(_Section):
 
 
 class Config(_Section):
+    provider: ProviderConfig
+    gemini: GeminiConfig
     models: ModelsConfig
     ollama: OllamaConfig
     reranker: RerankerConfig
@@ -135,6 +175,11 @@ class Config(_Section):
     llm_endpoint: Endpoint | None = Field(default=None, exclude=True)
     embed_endpoint: Endpoint | None = Field(default=None, exclude=True)
     env_overrides: tuple[str, ...] = Field(default=(), exclude=True)
+    # Set by with_env() when the Gemini API is in use: its endpoint, and the local model
+    # names from config.yaml (models.* then holds the Gemini models, so the rest of the
+    # code base reads one place).
+    gemini_endpoint: Endpoint | None = Field(default=None, exclude=True)
+    local_models: ModelsConfig | None = Field(default=None, exclude=True)
 
     @model_validator(mode="after")
     def _confidence_order(self) -> "Config":
@@ -147,14 +192,23 @@ class Config(_Section):
         return self
 
     @property
+    def uses_gemini(self) -> bool:
+        return self.gemini_endpoint is not None
+
+    @property
+    def local_llm(self) -> Endpoint:
+        """The local answer server (Ollama, or the one set in .env), whichever provider is on."""
+        return self.llm_endpoint or Endpoint(provider="ollama", base_url=self.ollama.base_url)
+
+    @property
     def llm(self) -> Endpoint:
         """Where answers, SQL, rewrites and labels are generated."""
-        return self.llm_endpoint or Endpoint(provider="ollama", base_url=self.ollama.base_url)
+        return self.gemini_endpoint or self.local_llm
 
     @property
     def embed(self) -> Endpoint:
         """Where embeddings are made (defaults to the answer endpoint)."""
-        return self.embed_endpoint or self.llm
+        return self.gemini_endpoint or self.embed_endpoint or self.local_llm
 
     def resolve_path(self, p: str) -> Path:
         path = Path(p)
@@ -214,7 +268,25 @@ def with_env(data: dict, env: dict[str, str], base_dir: Path = REPO_ROOT) -> Con
         raise ConfigError(f"Invalid .env setting: {exc}") from exc
     except ConfigError as exc:
         raise ConfigError(f"{exc} (check .env overrides)" if any(k in env for k in _env_names()) else str(exc)) from exc
-    return cfg.model_copy(update={"llm_endpoint": llm, "embed_endpoint": emb, "env_overrides": tuple(overridden)})
+    cfg = cfg.model_copy(update={"llm_endpoint": llm, "embed_endpoint": emb, "env_overrides": tuple(overridden)})
+    if not cfg.provider.use_local_models:
+        cfg = cfg.model_copy(update=gemini_update(cfg, env))
+    return cfg
+
+
+def gemini_update(cfg: Config, env: dict[str, str]) -> dict:
+    """Switch answers and embeddings to the Gemini API: its endpoint and model names. The
+    API key comes from .env (saved by the Settings page) and is never in config.yaml.
+    Choosing Gemini in Settings (or in config.yaml) is the opt-in to send text to Google,
+    so EVIDEX_ALLOW_REMOTE is not needed for it."""
+    g = cfg.gemini
+    endpoint = Endpoint(provider="gemini", base_url=g.base_url, api_key=gemini_api_key(env))
+    models = cfg.models.model_copy(update={"answer": g.answer_model, "embedding": g.embedding_model,
+                                           # nomic-style task prefixes mean nothing to Gemini embeddings
+                                           "embedding_query_prefix": "", "embedding_doc_prefix": ""})
+    local_only = {"models.answer", "models.embedding", "models.embedding_query_prefix", "models.embedding_doc_prefix"}
+    return {"gemini_endpoint": endpoint, "local_models": cfg.models, "models": models,
+            "env_overrides": tuple(k for k in cfg.env_overrides if k not in local_only)}
 
 
 def _env_names():

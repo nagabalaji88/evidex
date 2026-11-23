@@ -649,6 +649,7 @@
     "/api/models": {
       "get": {
         "summary": "Models",
+        "description": "Local models only (Ollama, or the server set in .env), whichever provider is on: the\nSettings page lists them when its \"Use local models\" toggle is on.",
         "operationId": "models_api_models_get",
         "responses": {
           "200": {
@@ -657,6 +658,100 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ModelList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gemini/models": {
+      "post": {
+        "summary": "Gemini Models",
+        "description": "The answer and embedding models this API key can use. With gemini.free_tier_only\n(the default) only models with a free tier are listed.",
+        "operationId": "gemini_models_api_gemini_models_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeminiModelsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeminiModelList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gemini/key": {
+      "put": {
+        "summary": "Save Gemini Key",
+        "description": "Check the key against the Gemini API, then save it in .env (git-ignored). The key is\nnever written to config.yaml and never returned by the API.",
+        "operationId": "save_gemini_key_api_gemini_key_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeminiKey"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Gemini Key",
+        "operationId": "delete_gemini_key_api_gemini_key_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResult"
                 }
               }
             }
@@ -1785,6 +1880,153 @@
         "title": "Evidence",
         "description": "One evidence block: a cited chunk with its supporting sentences highlighted."
       },
+      "GeminiInfo": {
+        "properties": {
+          "in_use": {
+            "type": "boolean",
+            "title": "In Use"
+          },
+          "api_key_set": {
+            "type": "boolean",
+            "title": "Api Key Set"
+          },
+          "api_key_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "in_use",
+          "api_key_set"
+        ],
+        "title": "GeminiInfo"
+      },
+      "GeminiKey": {
+        "properties": {
+          "api_key": {
+            "type": "string",
+            "title": "Api Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "api_key"
+        ],
+        "title": "GeminiKey"
+      },
+      "GeminiModel": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "free_tier": {
+            "type": "boolean",
+            "title": "Free Tier"
+          },
+          "input_token_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Token Limit"
+          },
+          "output_token_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Token Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "display_name",
+          "kind",
+          "free_tier"
+        ],
+        "title": "GeminiModel"
+      },
+      "GeminiModelList": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/GeminiModel"
+            },
+            "type": "array",
+            "title": "Models"
+          },
+          "free_tier_only": {
+            "type": "boolean",
+            "title": "Free Tier Only"
+          },
+          "hidden_paid": {
+            "type": "integer",
+            "title": "Hidden Paid",
+            "default": 0
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "models",
+          "free_tier_only"
+        ],
+        "title": "GeminiModelList"
+      },
+      "GeminiModelsRequest": {
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          }
+        },
+        "type": "object",
+        "title": "GeminiModelsRequest",
+        "description": "Leave api_key empty to use the saved key."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2062,6 +2304,26 @@
                 "type": "null"
               }
             ]
+          },
+          "gemini": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GeminiInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active_answer_model": {
+            "type": "string",
+            "title": "Active Answer Model",
+            "default": ""
+          },
+          "active_embedding_model": {
+            "type": "string",
+            "title": "Active Embedding Model",
+            "default": ""
           }
         },
         "type": "object",

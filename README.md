@@ -47,6 +47,23 @@ claude
 
 Then follow `docs/claude-code-guide.md`, starting with `/milestone 1`.
 
+## Gemini API or local models (Settings > AI models)
+
+By default answers and embeddings come from the Google Gemini API (`provider.use_local_models:
+false` in `config.yaml`). Open Settings > AI models, paste an API key from
+aistudio.google.com/api-keys and click Save key: Evidex checks it with Google, saves it in `.env`
+as `EVIDEX_GEMINI_API_KEY` (never in `config.yaml`, never shown again), and lists the models that
+key can use. Only models in `gemini.free_tier_models` (taken from Google's pricing page) are listed
+or accepted while `gemini.free_tier_only` is true. Pick the answer and embedding models, then Save.
+
+- The free tier applies only when the key's Google Cloud project has no billing account. With
+  billing on, Google charges for every request, whichever model you pick.
+- On the free tier Google may use what is sent (questions and document passages) to improve its
+  products. The rest of Evidex (files, index, logs) stays on your computer.
+- Free-tier rate limits answer HTTP 429: Evidex waits and retries (`gemini.rate_limit_retries`).
+- Turn on "Use local models" to list and use local models (Ollama or the `.env` server) instead.
+  Switching changes the embedding model, so re-index (the page offers it after saving).
+
 ## Models, servers and API keys (.env)
 
 Copy `.env.example` to `.env` (git-ignored) to change where models run, without touching code:

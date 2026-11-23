@@ -89,6 +89,20 @@ describe("settings", () => {
     expect(out).toContain("relevance_threshold: 0.35   # placeholder, set by evaluation");
     expect(out).toContain("enabled: false            # evaluation compares on/off");
   });
+  it("patches the Gemini toggle and models in the real config.yaml", () => {
+    // The first sections of the repo's config.yaml (comments included).
+    const real = "provider:\n  use_local_models: false   # Settings toggle. false: Google Gemini API\n\ngemini:\n" +
+      "  # Chat and embeddings use Gemini's OpenAI-compatible endpoint.\n  answer_model: gemini-3.5-flash-lite\n" +
+      "  embedding_model: gemini-embedding-001\n  max_output_tokens: 4096   # includes thinking tokens\n\n" +
+      "# Local models, used when provider.use_local_models is true.\nmodels:\n  answer: qwen2.5:7b-instruct\n" +
+      "  embedding: nomic-embed-text\n";
+    const out = yamlSet(yamlSet(yamlSet(real, "provider.use_local_models", true), "gemini.answer_model", "gemini-2.5-flash"),
+      "models.answer", "llama3.1:8b");
+    expect(out).toMatch(/use_local_models: true {3}# Settings toggle/);
+    expect(out).toContain("  answer_model: gemini-2.5-flash\n");
+    expect(out).toContain('  answer: "llama3.1:8b"\n');
+    expect(out).toContain("  embedding_model: gemini-embedding-001\n");  // untouched
+  });
   it("refuses invalid combinations", () => {
     const ok = { "ollama.num_predict": 400, "retrieval.candidate_k": 10, "retrieval.history_turns": 5, "ingestion.chunk_size_tokens": 500,
       "ingestion.chunk_overlap_tokens": 50, "ingestion.max_file_mb": 25, "retrieval.final_k": 3, "retrieval.relevance_threshold": 0.3,

@@ -22,7 +22,7 @@ export async function getJSON<T>(path: string): Promise<T> {
   return handle<T>(await fetch(path, { headers: { Accept: "application/json" } }));
 }
 
-export async function sendJSON<T>(path: string, method: "POST" | "PUT", body?: unknown): Promise<T> {
+export async function sendJSON<T>(path: string, method: "POST" | "PUT" | "DELETE", body?: unknown): Promise<T> {
   return handle<T>(
     await fetch(path, {
       method,

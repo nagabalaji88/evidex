@@ -56,9 +56,10 @@ function Rail({ page, open, toggle }: { page: PageId; open: boolean; toggle: () 
   );
 }
 
-/** "Ollama", or the host of an OpenAI-compatible server ("localhost:1234"). */
+/** "Ollama", "Gemini", or the host of an OpenAI-compatible server ("localhost:1234"). */
 function providerShort(p?: string): string {
   if (!p || p === "Ollama") return "Ollama";
+  if (p === "Google Gemini API") return "Gemini";
   return p.replace(/^OpenAI-compatible · /, "");
 }
 
@@ -69,7 +70,7 @@ function ModelChip() {
   const label = name ? modelLabel(name) : "…";
   const cls = problem ? "chip bad" : health ? "chip" : "chip wait";
   return (
-    <span className={cls} title={problem ?? "Ollama and both models are ready"} role="status">
+    <span className={cls} title={problem ?? `${health?.provider ?? "Ollama"} and both models are ready`} role="status">
       <i />{providerShort(health?.provider)} · {label}{problem ? ` · ${problem.length > 60 ? "unavailable" : problem}` : ""}
     </span>
   );

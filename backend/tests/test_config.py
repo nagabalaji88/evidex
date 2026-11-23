@@ -19,14 +19,21 @@ def spec_example_config() -> dict:
     return yaml.safe_load(block)
 
 
+# Added after the spec, at the owner's request: the Gemini API and the local-models toggle.
+NOT_IN_SPEC = ("provider", "gemini")
+
+
 def test_repo_config_matches_spec_section_9():
-    """M1: check config.yaml against section 9 (same keys and values)."""
-    assert yaml.safe_load(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")) == spec_example_config()
+    """M1: check config.yaml against section 9 (same keys and values), apart from the
+    sections added later for the Gemini API."""
+    data = yaml.safe_load(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
+    assert {k: v for k, v in data.items() if k not in NOT_IN_SPEC} == spec_example_config()
 
 
 def test_repo_config_loads_and_validates():
     cfg = load_config()
-    assert cfg.models.answer == "qwen2.5:7b-instruct"
+    assert cfg.local_models.answer == "qwen2.5:7b-instruct"  # the toggle is off: Gemini answers
+    assert cfg.models.answer == cfg.gemini.answer_model
     assert cfg.ollama.num_ctx == 4096
     assert cfg.retrieval.final_k == 3
 
@@ -48,6 +55,7 @@ def test_storage_paths_resolve_against_config_dir(tmp_path):
 def test_env_var_selects_config_file(tmp_path, monkeypatch):
     data = config_dict()
     data["models"]["answer"] = "llama3.1:8b"
+    data["provider"]["use_local_models"] = True
     path = tmp_path / "config.yaml"
     path.write_text(yaml.safe_dump(data), encoding="utf-8")
     monkeypatch.setenv("EVIDEX_CONFIG", str(path))

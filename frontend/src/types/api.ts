@@ -288,11 +288,58 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Models */
+        /**
+         * Models
+         * @description Local models only (Ollama, or the server set in .env), whichever provider is on: the
+         *     Settings page lists them when its "Use local models" toggle is on.
+         */
         get: operations["models_api_models_get"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/gemini/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Gemini Models
+         * @description The answer and embedding models this API key can use. With gemini.free_tier_only
+         *     (the default) only models with a free tier are listed.
+         */
+        post: operations["gemini_models_api_gemini_models_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/gemini/key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save Gemini Key
+         * @description Check the key against the Gemini API, then save it in .env (git-ignored). The key is
+         *     never written to config.yaml and never returned by the API.
+         */
+        put: operations["save_gemini_key_api_gemini_key_put"];
+        post?: never;
+        /** Delete Gemini Key */
+        delete: operations["delete_gemini_key_api_gemini_key_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -731,6 +778,57 @@ export interface components {
             /** Score */
             score: number;
         };
+        /** GeminiInfo */
+        GeminiInfo: {
+            /** In Use */
+            in_use: boolean;
+            /** Api Key Set */
+            api_key_set: boolean;
+            /** Api Key Source */
+            api_key_source?: string | null;
+        };
+        /** GeminiKey */
+        GeminiKey: {
+            /** Api Key */
+            api_key: string;
+        };
+        /** GeminiModel */
+        GeminiModel: {
+            /** Name */
+            name: string;
+            /** Display Name */
+            display_name: string;
+            /** Kind */
+            kind: string;
+            /** Free Tier */
+            free_tier: boolean;
+            /** Input Token Limit */
+            input_token_limit?: number | null;
+            /** Output Token Limit */
+            output_token_limit?: number | null;
+        };
+        /** GeminiModelList */
+        GeminiModelList: {
+            /** Models */
+            models: components["schemas"]["GeminiModel"][];
+            /** Free Tier Only */
+            free_tier_only: boolean;
+            /**
+             * Hidden Paid
+             * @default 0
+             */
+            hidden_paid: number;
+            /** Error */
+            error?: string | null;
+        };
+        /**
+         * GeminiModelsRequest
+         * @description Leave api_key empty to use the saved key.
+         */
+        GeminiModelsRequest: {
+            /** Api Key */
+            api_key?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -828,6 +926,17 @@ export interface components {
             env_file?: string | null;
             llm?: components["schemas"]["EndpointInfo"] | null;
             embed?: components["schemas"]["EndpointInfo"] | null;
+            gemini?: components["schemas"]["GeminiInfo"] | null;
+            /**
+             * Active Answer Model
+             * @default
+             */
+            active_answer_model: string;
+            /**
+             * Active Embedding Model
+             * @default
+             */
+            active_embedding_model: string;
         };
         /** SettingsSaved */
         SettingsSaved: {
@@ -1737,6 +1846,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelList"];
+                };
+            };
+        };
+    };
+    gemini_models_api_gemini_models_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeminiModelsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeminiModelList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_gemini_key_api_gemini_key_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeminiKey"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_gemini_key_api_gemini_key_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionResult"];
                 };
             };
         };

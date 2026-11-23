@@ -1,3 +1,22 @@
+provider:
+  use_local_models: false   # Settings toggle. false: Google Gemini API (models below). true: local models (Ollama or a .env server)
+
+gemini:
+  # Chat and embeddings use Gemini's OpenAI-compatible endpoint; the model list uses the native API.
+  base_url: https://generativelanguage.googleapis.com/v1beta/openai
+  models_url: https://generativelanguage.googleapis.com/v1beta/models
+  answer_model: gemini-3.5-flash-lite
+  embedding_model: gemini-embedding-001
+  free_tier_only: true      # only models with a free tier can be picked (list below)
+  # Models whose Standard tier is "Free of charge" on aistudio.google.com/docs/pricing (checked 2026-11-23).
+  # A trailing * matches any suffix. Update this list when Google changes its pricing.
+  free_tier_models: [gemini-4-hydrogen, gemini-3.8-flash, gemini-3.6-flash, gemini-3.5-flash-lite, gemini-3.1-flash-lite, gemini-3-flash-preview, gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite, gemma-4*, gemini-embedding-001, gemini-embedding-2]
+  reasoning_effort: minimal # least thinking: faster, fewer tokens. Empty: the model's default
+  max_output_tokens: 4096   # includes thinking tokens, so it is larger than ollama.num_predict
+  rate_limit_retries: 2     # free-tier limits answer 429: wait and retry this many times
+  rate_limit_wait_seconds: 20
+
+# Local models, used when provider.use_local_models is true.
 models:
   answer: qwen2.5:7b-instruct
   embedding: nomic-embed-text

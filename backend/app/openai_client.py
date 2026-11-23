@@ -60,8 +60,9 @@ class OpenAICompatClient(ModelClient):
             "model": model or self.config.models.answer,
             "messages": messages,
             "temperature": option_overrides.get("temperature", o.temperature),
-            "max_tokens": option_overrides.get("num_predict", o.num_predict),
+            "max_tokens": option_overrides.get("num_predict", self._max_tokens()),
             "stream": False,
+            **self._extra_payload(),
         }
         t0 = time.perf_counter()
         while True:
@@ -76,7 +77,9 @@ class OpenAICompatClient(ModelClient):
                     payload["response_format"] = {"type": "json_object", "schema": schema}
                 elif mode == "json_object":
                     payload["response_format"] = {"type": "json_object"}
-            resp = await self._request("POST", "/chat/completions", payload)
+            resp = await self._post("/chat/completions", payload)
+            if self._drop_unsupported(resp, base):
+                continue
             # Servers reject an unsupported response_format with 400, 422 or (llama.cpp) 500.
             if resp.status_code in (400, 422, 500) and schema is not None and self._mode < len(_MODES) - 1 \
                     and ("response_format" in resp.text or "json" in resp.text.lower()):
@@ -97,6 +100,20 @@ class OpenAICompatClient(ModelClient):
                           output_tokens=int(usage.get("completion_tokens", 0)),
                           total_ms=ms, prompt_eval_ms=0.0, eval_ms=ms)
 
+    # Hooks for providers that need more than the plain OpenAI API (gemini_client.py).
+    def _max_tokens(self) -> int:
+        return self.config.ollama.num_predict
+
+    def _extra_payload(self) -> dict[str, Any]:
+        return {}
+
+    def _drop_unsupported(self, resp: httpx.Response, payload: dict[str, Any]) -> bool:
+        """Remove an optional field the server refused and return True to retry."""
+        return False
+
+    async def _post(self, path: str, payload: dict[str, Any]) -> httpx.Response:
+        return await self._request("POST", path, payload)
+
     @staticmethod
     def _with_schema_note(messages: list[dict[str, str]], schema: dict[str, Any]) -> list[dict[str, str]]:
         note = {"role": "system", "content": "Reply with one JSON object only, no other text, matching this JSON "
@@ -106,7 +123,7 @@ class OpenAICompatClient(ModelClient):
     async def embed(self, texts: list[str], *, model: str | None = None) -> list[list[float]]:
         if not texts:
             return []
-        resp = await self._request("POST", "/embeddings", {"model": model or self.config.models.embedding,
+        resp = await self._post("/embeddings", {"model": model or self.config.models.embedding,
                                                            "input": texts})
         if resp.status_code != 200:
             raise self._status_error(resp)

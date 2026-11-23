@@ -17,10 +17,18 @@ from app.main import create_app
 from app.ollama_client import OllamaClient, OllamaError
 from app.openai_client import OpenAICompatClient
 
-from .conftest import SAMPLE_DOCS, FakeOllama, FakeReranker, ScriptedLLM, answer_with, config_dict
+from .conftest import SAMPLE_DOCS, FakeOllama, FakeReranker, ScriptedLLM, answer_with
+from .conftest import config_dict as repo_config_dict
 from .test_documents_api import parse_sse, upload
 
 KEY = "sk-test-SECRET-123"
+
+
+def config_dict() -> dict:
+    """These tests cover local servers set in .env: the Settings toggle on local models."""
+    data = repo_config_dict()
+    data["provider"]["use_local_models"] = True
+    return data
 
 
 # -- .env parsing and precedence ------------------------------------------------------------
@@ -47,7 +55,8 @@ def test_parse_env_text():
 
 def write_cfg(tmp_path):
     p = tmp_path / "config.yaml"
-    p.write_text(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    p.write_text(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8").replace("use_local_models: false",
+                                                                          "use_local_models: true"), encoding="utf-8")
     return p
 
 

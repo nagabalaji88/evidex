@@ -237,7 +237,11 @@ def answer_with(*parts, found=True, missing=""):
 def _no_real_env(monkeypatch, tmp_path_factory):
     """Tests never read a developer's real .env or EVIDEX_* variables."""
     import os
-    monkeypatch.setenv("EVIDEX_ENV_FILE", str(tmp_path_factory.getbasetemp() / "no-such.env"))
+    # A fresh, missing .env per test: the Settings page may write one (the Gemini key).
+    monkeypatch.setenv("EVIDEX_ENV_FILE", str(tmp_path_factory.mktemp("env") / ".env"))
     for k in list(os.environ):
         if k.startswith("EVIDEX_") and k != "EVIDEX_ENV_FILE":
             monkeypatch.delenv(k, raising=False)
+    for k in ("EVIDEX_GEMINI_API_KEY", "GEMINI_API_KEY"):
+        monkeypatch.setenv(k, "")  # records the real value, so it is restored even if a test saves a key
+        monkeypatch.delenv(k)

@@ -426,6 +426,42 @@ class SettingsResponse(BaseModel):
     env_file: str | None = None
     llm: EndpointInfo | None = None
     embed: EndpointInfo | None = None
+    gemini: GeminiInfo | None = None
+    # The models in use right now (with Gemini on, config.models shows the local ones).
+    active_answer_model: str = ""
+    active_embedding_model: str = ""
+
+
+class GeminiInfo(BaseModel):
+    in_use: bool  # the toggle is on "Gemini" (provider.use_local_models is false)
+    api_key_set: bool
+    api_key_source: str | None = None  # ".env" or the environment variable's name; never the key
+
+
+class GeminiKey(BaseModel):
+    api_key: str
+
+
+class GeminiModelsRequest(BaseModel):
+    """Leave api_key empty to use the saved key."""
+
+    api_key: str | None = None
+
+
+class GeminiModel(BaseModel):
+    name: str
+    display_name: str
+    kind: str  # "answer" or "embedding"
+    free_tier: bool
+    input_token_limit: int | None = None
+    output_token_limit: int | None = None
+
+
+class GeminiModelList(BaseModel):
+    models: list[GeminiModel]
+    free_tier_only: bool
+    hidden_paid: int = 0  # models left out because they have no free tier
+    error: str | None = None
 
 
 class SettingsUpdate(BaseModel):

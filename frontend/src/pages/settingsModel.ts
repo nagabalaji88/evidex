@@ -5,6 +5,19 @@ export type Field =
   | { key: string; label: string; help: string; kind: "range"; min: number; max: number; step: number }
   | { key: string; label: string; help: string; kind: "number" };
 
+// The "AI models" card: the local/Gemini toggle and the Gemini models (config.yaml provider.*, gemini.*).
+export const LOCAL_TOGGLE = "provider.use_local_models";
+export const PROVIDER_FIELDS: Field[] = [
+  { key: LOCAL_TOGGLE, label: "Use local models", kind: "switch",
+    help: "Off: Google Gemini API, free tier. On: models on this computer (Ollama, or the server set in .env)." },
+  { key: "gemini.answer_model", label: "Answer model", kind: "select", options: [],
+    help: "Writes answers and SQL. Free-tier models only." },
+  { key: "gemini.embedding_model", label: "Embedding model", kind: "select", options: [],
+    help: "Turns text into vectors for search. Changing it re-indexes every document." },
+];
+// Local-only settings, hidden while Gemini answers (Gemini uses gemini.max_output_tokens instead).
+export const LOCAL_ONLY = ["models.answer", "models.embedding", "ollama.num_ctx", "ollama.num_predict", "ollama.keep_alive"];
+
 export const GROUPS: { title: string; fields: Field[] }[] = [
   { title: "Models", fields: [
     { key: "models.answer", label: "Answer model", help: "Writes answers and SQL. Only tested models are recommended.", kind: "select", options: [] },
@@ -39,10 +52,10 @@ export const GROUPS: { title: string; fields: Field[] }[] = [
 ];
 
 // Spec section 8: these show "Re-run the evaluation after saving".
-export const RISKY = ["models.answer", "models.embedding", "reranker.enabled", "retrieval.relevance_threshold",
+export const RISKY = [LOCAL_TOGGLE, "gemini.answer_model", "gemini.embedding_model", "models.answer", "models.embedding", "reranker.enabled", "retrieval.relevance_threshold",
   "retrieval.vector_threshold", "retrieval.final_k", "ingestion.chunk_size_tokens", "ingestion.chunk_overlap_tokens",
   "ollama.num_ctx"];
-export const REINDEX = ["models.embedding", "ingestion.chunk_size_tokens", "ingestion.chunk_overlap_tokens"];
+export const REINDEX = [LOCAL_TOGGLE, "gemini.embedding_model", "models.embedding", "ingestion.chunk_size_tokens", "ingestion.chunk_overlap_tokens"];
 
 export type Values = Record<string, unknown>;
 

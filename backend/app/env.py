@@ -22,7 +22,10 @@ from pydantic import BaseModel, ConfigDict, SecretStr
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ENV_FILE_VAR = "EVIDEX_ENV_FILE"
 
-Provider = Literal["ollama", "openai"]
+Provider = Literal["ollama", "openai", "gemini"]
+# Where the Settings page saves the Gemini API key. GEMINI_API_KEY (the name Google's docs use)
+# is read too, if the first is not set.
+GEMINI_KEY_VARS = ("EVIDEX_GEMINI_API_KEY", "GEMINI_API_KEY")
 
 # EVIDEX_* variable -> (config section, key, type)
 OVERRIDES: dict[str, tuple[str, str, type]] = {
@@ -63,6 +66,8 @@ class Endpoint(BaseModel):
 
     @property
     def label(self) -> str:
+        if self.provider == "gemini":
+            return "Google Gemini API"
         return "Ollama" if self.provider == "ollama" else f"OpenAI-compatible · {self.host}"
 
     def headers(self) -> dict[str, str]:
@@ -73,6 +78,14 @@ class Endpoint(BaseModel):
         """Safe to show: never includes the key itself."""
         return {"provider": self.provider, "base_url": self.base_url, "label": self.label,
                 "api_key_set": bool(self.api_key and self.api_key.get_secret_value())}
+
+
+def gemini_api_key(env: dict[str, str]) -> SecretStr | None:
+    for name in GEMINI_KEY_VARS:
+        value = (env.get(name) or "").strip()
+        if value:
+            return SecretStr(value)
+    return None
 
 
 def env_file_path() -> Path:
@@ -101,6 +114,35 @@ def parse_env_text(text: str) -> dict[str, str]:
             value = re.split(r"\s+#", value, maxsplit=1)[0].strip()  # trailing comment
         out[key] = value
     return out
+
+
+def set_env_value(name: str, value: str | None, path: Path | None = None) -> Path:
+    """Write NAME=value into the .env file (created if missing; other lines and comments kept),
+    or remove the line when value is None. Also updates os.environ, so it applies at once."""
+    if not re.fullmatch(r"[A-Z_][A-Z0-9_]*", name):
+        raise EnvError(f"not a variable name: {name!r}")
+    if value is not None and ("\n" in value or "\r" in value):
+        raise EnvError(f"{name} must be one line")
+    path = path or env_file_path()
+    lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+    line_re = re.compile(rf"^\s*(export\s+)?{name}\s*=")
+    new = f'{name}="{value}"' if value is not None else None
+    out, done = [], False
+    for line in lines:
+        if line_re.match(line):
+            if new is not None and not done:
+                out.append(new)
+            done = True
+            continue
+        out.append(line)
+    if new is not None and not done:
+        out.append(new)
+    path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    if value is None:
+        os.environ.pop(name, None)
+    else:
+        os.environ[name] = value
+    return path
 
 
 def load_env_file(path: Path | None = None) -> dict[str, str]:

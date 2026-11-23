@@ -20,7 +20,9 @@ V2 = SAMPLE_DOCS / "versions" / "v2" / "refund_policy.docx"
 
 def make_client(tmp_path, script=None, models=None, config_text=None):
     cfg_file = tmp_path / "config.yaml"
-    cfg_file.write_text(config_text or DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    # Local models (the Settings toggle on); the Gemini tests are in test_gemini.py.
+    text = DEFAULT_CONFIG_PATH.read_text(encoding="utf-8").replace("use_local_models: false", "use_local_models: true")
+    cfg_file.write_text(config_text or text, encoding="utf-8")
     cfg = parse_config(yaml.safe_load(cfg_file.read_text(encoding="utf-8")), base_dir=tmp_path)
     ollama = FakeOllama(chat_reply=script, **({"models": models} if models else {}))
     app = create_app(cfg, ollama_transport=ollama.transport, reranker_loader=FakeReranker, embedder=FakeEmbedder(),

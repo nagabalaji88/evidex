@@ -7,11 +7,14 @@ import httpx
 
 from .config import Config
 from .env import Endpoint
+from .gemini_client import GeminiClient
 from .ollama_client import ModelClient, OllamaClient
 from .openai_client import OpenAICompatClient
 
 
 def client_for(config: Config, endpoint: Endpoint, transport: httpx.AsyncBaseTransport | None = None) -> ModelClient:
+    if endpoint.provider == "gemini":
+        return GeminiClient(config, endpoint, transport=transport)
     if endpoint.provider == "openai":
         return OpenAICompatClient(config, endpoint, transport=transport)
     return OllamaClient(config, transport=transport, endpoint=endpoint)

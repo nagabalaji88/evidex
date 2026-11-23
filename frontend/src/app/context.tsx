@@ -34,7 +34,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const timer = useRef<number | undefined>(undefined);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const reloadConfig = useCallback(() => {
-    getJSON<SettingsResponse>("/api/settings").then((s) => setConfig(s.config as AppConfig)).catch(() => undefined);
+    getJSON<SettingsResponse>("/api/settings").then((s) => {
+      // The models in use: with Gemini on, s.config.models holds the local models instead.
+      const c = s.config as AppConfig;
+      setConfig({ ...c, models: { ...c.models, answer: s.active_answer_model || c.models?.answer,
+        embedding: s.active_embedding_model || c.models?.embedding } });
+    }).catch(() => undefined);
   }, []);
   useEffect(() => reloadConfig(), [reloadConfig]);
 
@@ -72,6 +77,7 @@ export function runtimeProblem(health: HealthResponse | null, healthError: strin
   if (healthError) return healthError;
   if (!health) return null;
   if (!health.ollama.ok) {
+    if (health.provider === "Google Gemini API") return health.ollama.detail;
     return health.provider === "Ollama" ? "Ollama is not running. Start it with: ollama serve"
       : `${health.provider} is not reachable. Start the server or check EVIDEX_LLM_BASE_URL in .env`;
   }
