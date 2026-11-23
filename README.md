@@ -63,6 +63,16 @@ Copy-Item .env.example .env
 
 ## Running
 
+On Windows, the two batch files in the repo root do the steps below for you:
+
+```powershell
+.\install.bat      # once: backend\.venv + packages, .env, Ollama models from config.yaml, front-end build
+.\run.bat          # daily use: http://localhost:8000
+.\run.bat dev      # API with --reload plus the Vite dev server on http://localhost:5173
+```
+
+The same steps by hand:
+
 ```powershell
 # Backend (first time)
 cd backend; python -m venv .venv
