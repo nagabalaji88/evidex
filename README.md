@@ -63,12 +63,14 @@ Copy-Item .env.example .env
 
 ## Running
 
-On Windows, the two batch files in the repo root do the steps below for you:
+On Windows, `evidex.bat` in the repo root does the steps below for you. It installs only what is
+missing (backend\.venv and packages, .env, the Ollama models from config.yaml, the front-end
+build), then starts the app:
 
 ```powershell
-.\install.bat      # once: backend\.venv + packages, .env, Ollama models from config.yaml, front-end build
-.\run.bat          # daily use: http://localhost:8000
-.\run.bat dev      # API with --reload plus the Vite dev server on http://localhost:5173
+.\evidex.bat           # install if needed, then run at http://localhost:8000
+.\evidex.bat dev       # API with --reload plus the Vite dev server on http://localhost:5173
+.\evidex.bat install   # install or update everything, then stop
 ```
 
 The same steps by hand:

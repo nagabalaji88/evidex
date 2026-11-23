@@ -1,4 +1,4 @@
-"""Print the Ollama models the settings need, one per line (used by install.bat).
+"""Print the Ollama models the settings need, one per line (used by evidex.bat).
 
 Reads config.yaml plus .env like the app does, so the names are never hard-coded.
 Models served by another provider (an OpenAI-compatible server) are skipped: Ollama
