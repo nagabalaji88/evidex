@@ -168,7 +168,7 @@ class _Run:
             yield self._error(exc.code, exc.message)
             return
         except OllamaError as exc:
-            yield self._error("ollama_unavailable", f"Ollama is not available: {exc}")
+            yield self._error("ollama_unavailable", f"The model server is not available: {exc}")
             return
         for s in self.result.steps:
             if s.title == "Ranking by relevance":
@@ -182,7 +182,7 @@ class _Run:
             async for ev in gen:
                 yield ev
         except OllamaError as exc:
-            yield self._error("ollama_unavailable", f"Ollama is not available: {exc}")
+            yield self._error("ollama_unavailable", f"The model server is not available: {exc}")
         except AskError as exc:
             yield self._error(exc.code, exc.message)
 

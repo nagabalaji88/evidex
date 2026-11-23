@@ -19,7 +19,9 @@ from .config import Config
 from .env import Endpoint
 from .ollama_client import ChatResult, ModelClient, OllamaError
 
-_MODES = ("json_schema", "json_object", "none")
+# json_schema (OpenAI, vLLM, LM Studio) -> json_object with the schema attached (llama.cpp
+# enforces it as a grammar) -> plain json_object -> no response_format.
+_MODES = ("json_schema", "json_object_schema", "json_object", "none")
 
 
 class OpenAICompatClient(ModelClient):
@@ -70,10 +72,13 @@ class OpenAICompatClient(ModelClient):
                 if mode == "json_schema":
                     payload["response_format"] = {"type": "json_schema",
                                                   "json_schema": {"name": "response", "schema": schema}}
+                elif mode == "json_object_schema":
+                    payload["response_format"] = {"type": "json_object", "schema": schema}
                 elif mode == "json_object":
                     payload["response_format"] = {"type": "json_object"}
             resp = await self._request("POST", "/chat/completions", payload)
-            if resp.status_code in (400, 422) and schema is not None and self._mode < len(_MODES) - 1 \
+            # Servers reject an unsupported response_format with 400, 422 or (llama.cpp) 500.
+            if resp.status_code in (400, 422, 500) and schema is not None and self._mode < len(_MODES) - 1 \
                     and ("response_format" in resp.text or "json" in resp.text.lower()):
                 self._mode += 1  # this server does not support that output mode; try the next one
                 continue

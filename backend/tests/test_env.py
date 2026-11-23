@@ -147,8 +147,9 @@ class FakeOpenAI:
     """An OpenAI-compatible /v1 server. `reply(pseudo_body)` uses ScriptedLLM's body shape."""
 
     def __init__(self, reply=None, models=("qwen2.5-7b-instruct", "nomic-embed-text"), key=None,
-                 modes=("json_schema", "json_object", "none"), fences=False):
+                 modes=("json_schema", "json_object", "none"), fences=False, reject_status=400):
         self.reply, self.models, self.key, self.modes, self.fences = reply, list(models), key, modes, fences
+        self.reject_status = reject_status
         self.requests: list[tuple[str, dict, dict]] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
@@ -165,9 +166,13 @@ class FakeOpenAI:
             data = [{"object": "embedding", "index": i, "embedding": v} for i, v in enumerate(vecs)]
             return httpx.Response(200, json={"data": list(reversed(data)), "model": body["model"]})
         if path.endswith("/chat/completions"):
-            rf = (body.get("response_format") or {}).get("type", "none")
+            fmt = body.get("response_format") or {}
+            rf = fmt.get("type", "none") + ("_schema" if fmt.get("type") == "json_object" and "schema" in fmt else "")
             if rf not in self.modes:
-                return httpx.Response(400, json={"error": {"message": f"response_format {rf} is not supported"}})
+                return httpx.Response(self.reject_status,
+                                      json={"error": {"message": f"response_format {rf} is not supported"}})
+            if rf == "json_object_schema":
+                body = {**body, "response_format": {"type": "json_schema", "json_schema": {"schema": fmt["schema"]}}}
             schema = (body.get("response_format") or {}).get("json_schema", {}).get("schema")
             if schema is None and body["messages"][0]["role"] == "system":
                 schema = json.loads(body["messages"][0]["content"].split("this JSON schema: ", 1)[1])
@@ -228,8 +233,9 @@ def test_openai_falls_back_when_json_schema_unsupported():
 
     a, b = run(go())
     assert json.loads(a.content) == json.loads(b.content) == {"label": "lookup"}  # fences stripped
-    kinds = [(x.get("response_format") or {}).get("type", "none") for x, _ in fake.calls("/chat/completions")]
-    assert kinds == ["json_schema", "json_object", "none", "none"]  # the working mode is remembered
+    kinds = [(x.get("response_format") or {}).get("type", "none") + ("+schema" if "schema" in (x.get("response_format") or {}) else "")
+             for x, _ in fake.calls("/chat/completions")]
+    assert kinds == ["json_schema", "json_object+schema", "json_object", "none", "none"]  # working mode remembered
     assert "authorization" not in fake.calls("/chat/completions")[0][1]  # no key -> no header
 
 
@@ -337,3 +343,20 @@ def test_key_is_not_sent_to_a_different_embedding_server():
     assert other.embed.api_key is None
     same = with_env(config_dict(), {**base, "EVIDEX_EMBED_PROVIDER": "openai"})  # same server, no URL given
     assert same.embed.api_key is not None and same.embed.api_key.get_secret_value() == KEY
+
+
+def test_llama_cpp_style_server_gets_schema_via_json_object():
+    """llama.cpp rejects json_schema with HTTP 500 but enforces {"type": "json_object", "schema": ...}."""
+    fake = FakeOpenAI(reply=lambda b: json.dumps({"label": "lookup"}), modes=("json_object_schema", "json_object", "none"),
+                      reject_status=500)
+    cfg = openai_cfg(key=None)
+    schema = {"type": "object", "properties": {"label": {"type": "string"}}, "required": ["label"]}
+
+    async def go():
+        async with OpenAICompatClient(cfg, cfg.llm, transport=fake.transport) as c:
+            return await c.chat([{"role": "user", "content": "q"}], schema=schema)
+
+    out = run(go())
+    assert json.loads(out.content) == {"label": "lookup"}
+    last = fake.calls("/chat/completions")[-1][0]["response_format"]
+    assert last == {"type": "json_object", "schema": schema}
