@@ -11,9 +11,20 @@ export const PROVIDER_FIELDS: Field[] = [
   { key: LOCAL_TOGGLE, label: "Use local models", kind: "switch",
     help: "Off: Google Gemini API, free tier. On: models on this computer (Ollama, or the server set in .env)." },
   { key: "gemini.answer_model", label: "Answer model", kind: "select", options: [],
-    help: "Writes answers and SQL. Free-tier models only." },
+    help: "Writes the answers, and every task below left on \"Same as the answer model\"." },
   { key: "gemini.embedding_model", label: "Embedding model", kind: "select", options: [],
     help: "Turns text into vectors for search. Changing it re-indexes every document." },
+];
+// Optional models for specific AI tasks (gemini.<task>_model); "" = the answer model does it.
+export const TASK_FIELDS: Field[] = [
+  { key: "gemini.rewrite_model", label: "Follow-up questions", kind: "select", options: [],
+    help: "Rewrites a follow-up (\"and in Chennai?\") into a full question." },
+  { key: "gemini.route_model", label: "Question routing", kind: "select", options: [],
+    help: "Decides between searching the documents and calculating from a table." },
+  { key: "gemini.sql_model", label: "Table calculations (SQL)", kind: "select", options: [],
+    help: "Writes the read-only SQL for spreadsheet and CSV questions." },
+  { key: "gemini.claim_model", label: "Claim check", kind: "select", options: [],
+    help: "The extra check of each sentence, when Extra AI claim check is on." },
 ];
 // Local-only settings, hidden while Gemini answers (Gemini uses gemini.max_output_tokens instead).
 export const LOCAL_ONLY = ["models.answer", "models.embedding", "ollama.num_ctx", "ollama.num_predict", "ollama.keep_alive"];
@@ -52,7 +63,8 @@ export const GROUPS: { title: string; fields: Field[] }[] = [
 ];
 
 // Spec section 8: these show "Re-run the evaluation after saving".
-export const RISKY = [LOCAL_TOGGLE, "gemini.answer_model", "gemini.embedding_model", "models.answer", "models.embedding", "reranker.enabled", "retrieval.relevance_threshold",
+export const RISKY = [LOCAL_TOGGLE, "gemini.answer_model", "gemini.embedding_model", "gemini.rewrite_model",
+  "gemini.route_model", "gemini.sql_model", "gemini.claim_model", "models.answer", "models.embedding", "reranker.enabled", "retrieval.relevance_threshold",
   "retrieval.vector_threshold", "retrieval.final_k", "ingestion.chunk_size_tokens", "ingestion.chunk_overlap_tokens",
   "ollama.num_ctx"];
 export const REINDEX = [LOCAL_TOGGLE, "gemini.embedding_model", "models.embedding", "ingestion.chunk_size_tokens", "ingestion.chunk_overlap_tokens"];

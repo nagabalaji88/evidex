@@ -30,6 +30,11 @@ class _Section(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+# AI tasks that can have their own model (gemini.<task>_model); every other call, and an
+# empty setting, uses the answer model.
+TASKS = ("rewrite", "route", "sql", "claim")
+
+
 class ProviderConfig(_Section):
     use_local_models: bool  # the Settings toggle: False = Google Gemini API, True = local models
 
@@ -39,6 +44,10 @@ class GeminiConfig(_Section):
     models_url: str = Field(min_length=1)  # native model list
     answer_model: str = Field(min_length=1)
     embedding_model: str = Field(min_length=1)
+    rewrite_model: str
+    route_model: str
+    sql_model: str
+    claim_model: str
     free_tier_only: bool
     free_tier_models: list[str]
     reasoning_effort: str
@@ -60,8 +69,8 @@ class GeminiConfig(_Section):
     @model_validator(mode="after")
     def _free_models_only(self) -> "GeminiConfig":
         if self.free_tier_only:
-            for key in ("answer_model", "embedding_model"):
-                if not self.is_free_tier(getattr(self, key)):
+            for key in ("answer_model", "embedding_model", *(f"{task}_model" for task in TASKS)):
+                if getattr(self, key) and not self.is_free_tier(getattr(self, key)):
                     raise ValueError(f"gemini.{key} '{getattr(self, key)}' has no free tier. Pick a model from "
                                      "gemini.free_tier_models, or set gemini.free_tier_only to false")
         return self
@@ -180,6 +189,7 @@ class Config(_Section):
     # code base reads one place).
     gemini_endpoint: Endpoint | None = Field(default=None, exclude=True)
     local_models: ModelsConfig | None = Field(default=None, exclude=True)
+    task_models: dict[str, str] = Field(default_factory=dict, exclude=True)
 
     @model_validator(mode="after")
     def _confidence_order(self) -> "Config":
@@ -190,6 +200,10 @@ class Config(_Section):
                 "confidence.medium_from <= confidence.high_from"
             )
         return self
+
+    def model_for(self, task: str) -> str:
+        """The model for one AI task (see TASKS); the answer model unless one is set."""
+        return self.task_models.get(task) or self.models.answer
 
     @property
     def uses_gemini(self) -> bool:
@@ -285,7 +299,8 @@ def gemini_update(cfg: Config, env: dict[str, str]) -> dict:
                                            # nomic-style task prefixes mean nothing to Gemini embeddings
                                            "embedding_query_prefix": "", "embedding_doc_prefix": ""})
     local_only = {"models.answer", "models.embedding", "models.embedding_query_prefix", "models.embedding_doc_prefix"}
-    return {"gemini_endpoint": endpoint, "local_models": cfg.models, "models": models,
+    tasks = {task: getattr(g, f"{task}_model") for task in TASKS if getattr(g, f"{task}_model")}
+    return {"gemini_endpoint": endpoint, "local_models": cfg.models, "models": models, "task_models": tasks,
             "env_overrides": tuple(k for k in cfg.env_overrides if k not in local_only)}
 
 

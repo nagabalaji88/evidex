@@ -164,11 +164,19 @@ def test_follow_up_has_eight_steps(make_rig):
     assert ev.data["standalone_question"].startswith("What is the daily allowance in cities")
 
 
-def test_other_model_is_marked_not_evaluated(make_rig):
-    rig = make_rig(ScriptedLLM(answer=answer_with(("The daily allowance is INR 2,500 in metro cities.", ALLOWANCE))))
-    ev, _ = rig.ask(ALLOWANCE_Q, model="llama3.1:8b")
-    assert ev.data["model"] == "llama3.1:8b" and ev.data["not_evaluated"] is True
-    assert rig.ollama.calls("/api/chat")[0]["model"] == "llama3.1:8b"
+def test_each_task_uses_the_model_chosen_in_settings(make_rig, config):
+    """Models are picked in Settings only: the answer model, plus optional per-task models."""
+    cfg = config.model_copy(update={
+        "task_models": {"claim": "task-claim-model", "route": "task-route-model"},
+        "grounding": config.grounding.model_copy(update={"claim_check_enabled": True})})
+    script = ScriptedLLM(answer=answer_with(("The daily allowance is INR 2,500 in metro cities.", ALLOWANCE)),
+                         claim={"results": []})
+    rig = make_rig(script, cfg=cfg)
+    ev, _ = rig.ask(ALLOWANCE_Q)
+    assert ev.data["model"] == cfg.models.answer and ev.data["not_evaluated"] is False
+    used = {script.kind(b): b["model"] for b in rig.ollama.calls("/api/chat")}
+    assert used["answer"] == cfg.models.answer and used["claim"] == "task-claim-model"
+    assert cfg.model_for("sql") == cfg.models.answer  # not set: the answer model
 
 
 # -- section 6: grounding -------------------------------------------------------------------

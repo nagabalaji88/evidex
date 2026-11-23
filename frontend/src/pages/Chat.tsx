@@ -3,7 +3,7 @@ import { runtimeProblem, useApp } from "../app/context";
 import { fileType, modelLabel, sessionId, stripExt } from "../app/format";
 import { getJSON } from "../api/client";
 import { ConnectionLost, postStream } from "../api/stream";
-import type { ActivityList, AnswerPayload, AskRequest, DocumentList, DocumentSummary, ModelList, TraceResponse } from "../api/types";
+import type { ActivityList, AnswerPayload, AskRequest, DocumentList, DocumentSummary, TraceResponse } from "../api/types";
 import { AnswerCard, ErrorCard, FileType, WorkingCard } from "../components/AnswerCard";
 import { Trace, questionSteps } from "../components/Trace";
 import { chatReducer, initialChat, runningTitle, totalSteps, type ChatMessage } from "./chatState";
@@ -68,8 +68,6 @@ export default function Chat() {
   const [state, dispatch] = useReducer(chatReducer, initialChat);
   const [docs, setDocs] = useState<DocumentSummary[]>([]);
   const [sel, setSel] = useState<Record<number, boolean>>({});
-  const [models, setModels] = useState<ModelList | null>(null);
-  const [model, setModel] = useState<string>("");
   const [input, setInput] = useState("");
   const [suggest, setSuggest] = useState<string[]>([]);
   const threadRef = useRef<HTMLDivElement>(null);
@@ -79,10 +77,6 @@ export default function Chat() {
 
   useEffect(() => {
     getJSON<DocumentList>("/api/documents").then((d) => setDocs(d.documents)).catch(() => setDocs([]));
-    getJSON<ModelList>("/api/models").then((m) => {
-      setModels(m);
-      setModel((cur) => cur || m.default);
-    }).catch(() => undefined);
     getJSON<ActivityList>("/api/activity?result=answered&limit=50").then((a) => {
       const seen: string[] = [];
       for (const r of a.rows) if (r.kind === "question" && !seen.includes(r.detail)) seen.push(r.detail);
@@ -102,7 +96,8 @@ export default function Chat() {
     if (live && el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [live, live?.steps.length]);
 
-  const answerModel = model || config?.models?.answer || "";
+  // Models are chosen in Settings only; this shows the one in use.
+  const answerModel = config?.models?.answer || "";
   const chosen = docs.filter((d) => sel[d.id] !== false);
   const selected = state.messages.find((m) => m.id === state.selected) ?? null;
 
@@ -126,7 +121,6 @@ export default function Chat() {
       question,
       session_id: sessionId(),
       document_ids: chosen.length === docs.length ? null : chosen.map((d) => d.id),
-      model: answerModel || null,
     };
     const id = newId();
     dispatch({ type: "ask", id, request, now: Date.now() });
@@ -164,7 +158,6 @@ export default function Chat() {
     return steps;
   }, [selected]);
 
-  const modelOptions = (models?.models ?? []).filter((m) => !m.is_embedding);
   const modelName = (n: string) => modelLabel(n);
 
   return (
@@ -183,7 +176,7 @@ export default function Chat() {
         </div>
         <div className="scroll thread-scroll" ref={threadRef}>
           <div className="thread" aria-live="polite">
-            {problem ? <div className="banner bad" role="alert">{problem}{healthError ? "" : " Answers need the local model."}</div> : null}
+            {problem ? <div className="banner bad" role="alert">{problem}{healthError ? "" : " Fix it in Settings."}</div> : null}
             {!state.messages.length ? (
               <div className="empty">
                 <b>Ask anything about your documents</b>
@@ -204,15 +197,8 @@ export default function Chat() {
             </div>
           ) : null}
           <form className="askrow" onSubmit={(e) => { e.preventDefault(); ask(input); }}>
-            <label htmlFor="modelSel" className="sr">Answer model</label>
-            <select id="modelSel" disabled={busy} value={answerModel} onChange={(e) => setModel(e.target.value)}>
-              {!modelOptions.some((m) => m.name === answerModel) && answerModel ? <option value={answerModel}>{modelName(answerModel)}</option> : null}
-              {modelOptions.map((m) => (
-                <option key={m.name} value={m.name} disabled={!m.fits_in_ram}>
-                  {modelName(m.name)}{m.tested ? "" : m.fits_in_ram ? " (not evaluated)" : " (needs more RAM)"}
-                </option>
-              ))}
-            </select>
+            <a className="modelchip" href="#settings" title="The answer model in use. Change models in Settings.">
+              {answerModel ? modelName(answerModel) : "Model"}</a>
             <label htmlFor="askInput" className="sr">Your question</label>
             <input id="askInput" autoComplete="off" placeholder="Ask a question about your documents…" value={input}
               onChange={(e) => setInput(e.target.value)} />

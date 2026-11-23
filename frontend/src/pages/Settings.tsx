@@ -4,10 +4,10 @@ import { modelLabel } from "../app/format";
 import { getJSON, sendJSON } from "../api/client";
 import type { ActionResult, GeminiModelList, ModelList, SettingsResponse, SettingsSaved } from "../api/types";
 import {
-  GROUPS, LOCAL_ONLY, LOCAL_TOGGLE, PROVIDER_FIELDS, REINDEX, RISKY, getPath, validate, yamlSet, type Field, type Values,
+  GROUPS, LOCAL_ONLY, LOCAL_TOGGLE, PROVIDER_FIELDS, REINDEX, RISKY, TASK_FIELDS, getPath, validate, yamlSet, type Field, type Values,
 } from "./settingsModel";
 
-const FIELDS = [...PROVIDER_FIELDS, ...GROUPS.flatMap((g) => g.fields)];
+const FIELDS = [...PROVIDER_FIELDS, ...TASK_FIELDS, ...GROUPS.flatMap((g) => g.fields)];
 type Opt = [string | number, string, boolean];
 
 function initial(cfg: Record<string, unknown>): Values {
@@ -36,7 +36,7 @@ export default function Settings() {
 
   const loadGemini = useCallback(() => {
     sendJSON<GeminiModelList>("/api/gemini/models", "POST", {}).then(setGemini)
-      .catch((e) => setGemini({ models: [], free_tier_only: true, hidden_paid: 0, error: (e as Error).message }));
+      .catch((e) => setGemini({ models: [], free_tier_only: true, paid_only: 0, error: (e as Error).message }));
   }, []);
 
   useEffect(() => {
@@ -62,11 +62,16 @@ export default function Settings() {
   const options = (f: Field): Opt[] => {
     if (f.kind !== "select") return [];
     const cur = String(saved[f.key] ?? "");
-    if (f.key === "gemini.answer_model" || f.key === "gemini.embedding_model") {
-      const kind = f.key === "gemini.answer_model" ? "answer" : "embedding";
+    if (f.key.startsWith("gemini.")) {
+      // Every model the key can use; paid-only ones are shown but cannot be picked while
+      // gemini.free_tier_only is on (the server refuses them too).
+      const kind = f.key === "gemini.embedding_model" ? "embedding" : "answer";
       const list = (gemini?.models ?? []).filter((m) => m.kind === kind)
-        .map((m) => [m.name, `${m.display_name} (${m.name})${m.free_tier ? " · free tier" : ""}`, false] as Opt);
-      return withCurrent(list, cur, gemini?.models.length ? " (not offered to this key)" : "");
+        .map((m) => [m.name, `${m.display_name} (${m.name}) · ${m.free_tier ? "free tier" : "paid only"}`,
+          !m.free_tier && !!gemini?.free_tier_only] as Opt);
+      const isTask = TASK_FIELDS.some((x) => x.key === f.key);
+      const withCur = withCurrent(list, cur, gemini?.models.length ? " (not offered to this key)" : "");
+      return isTask ? [["", "Same as the answer model", false], ...withCur] : withCur;
     }
     if (f.key === "models.answer") {
       const list = (models?.models ?? []).filter((m) => !m.is_embedding)
@@ -191,7 +196,8 @@ export default function Settings() {
   const [toggle, answerField, embedField] = PROVIDER_FIELDS;
   const geminiNote = gemini?.error ? <small className="note" role="alert">{gemini.error}</small>
     : !keySet ? <small className="note">Save an API key to list the models.</small>
-    : gemini && gemini.hidden_paid > 0 ? <small className="note">{gemini.hidden_paid} paid-only models hidden.</small> : null;
+    : gemini ? <small className="note">{gemini.models.filter((m) => m.kind === "answer").length} models available to this key
+      {gemini.paid_only && gemini.free_tier_only ? `; ${gemini.paid_only} paid-only, shown greyed out` : ""}.</small> : null;
 
   return (
     <>
@@ -229,8 +235,10 @@ export default function Settings() {
                   </div>
                   {row(answerField, geminiNote)}
                   {row(embedField)}
+                  <h3 className="lbl" style={{ margin: "16px 0 0" }}>Models for specific tasks</h3>
+                  {TASK_FIELDS.map((f) => row(f))}
                   <p className="callout info" style={{ margin: "10px 0 0" }}>
-                    Only free-tier models are listed. The free tier applies when the key&apos;s Google Cloud project
+                    Paid-only models are listed but cannot be picked. The free tier applies when the key&apos;s Google Cloud project
                     has no billing account; with billing on, Google charges for every request. On the free tier,
                     Google may use the text sent (your questions and document passages) to improve its products.
                   </p>

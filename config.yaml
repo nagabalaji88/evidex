@@ -7,6 +7,11 @@ gemini:
   models_url: https://generativelanguage.googleapis.com/v1beta/models
   answer_model: gemini-3.5-flash-lite
   embedding_model: gemini-embedding-001
+  # Models for specific tasks; empty means the answer model does it.
+  rewrite_model: ""         # turns a follow-up into a standalone question
+  route_model: ""           # decides between document search and a table calculation
+  sql_model: ""             # writes the read-only SQL for table questions
+  claim_model: ""           # the optional extra claim check (grounding.claim_check_enabled)
   free_tier_only: true      # only models with a free tier can be picked (list below)
   # Models whose Standard tier is "Free of charge" on aistudio.google.com/docs/pricing (checked 2026-11-23).
   # A trailing * matches any suffix. Update this list when Google changes its pricing.

@@ -191,8 +191,9 @@ _KEY_RE = re.compile(r"[A-Za-z0-9_\-.]{20,200}")
 
 @router.post("/gemini/models", response_model=GeminiModelList)
 async def gemini_models(body: GeminiModelsRequest, request: Request) -> GeminiModelList:
-    """The answer and embedding models this API key can use. With gemini.free_tier_only
-    (the default) only models with a free tier are listed."""
+    """Every answer and embedding model this API key can use, each marked free tier or not.
+    With gemini.free_tier_only (the default) the page greys out the paid-only ones, and
+    saving one is refused."""
     s = request.app.state
     g = s.config.gemini
     key = (body.api_key or "").strip()
@@ -203,10 +204,9 @@ async def gemini_models(body: GeminiModelsRequest, request: Request) -> GeminiMo
         found = await list_gemini_models(s.config, key, s.ollama_transport)
     except OllamaError as exc:
         return GeminiModelList(models=[], free_tier_only=g.free_tier_only, error=str(exc))
-    shown = [m for m in found if m["free_tier"] or not g.free_tier_only]
-    shown.sort(key=lambda m: (m["kind"] != "answer", not m["free_tier"], m["name"]))
-    return GeminiModelList(models=[GeminiModel(**{k: m[k] for k in GeminiModel.model_fields}) for m in shown],
-                           free_tier_only=g.free_tier_only, hidden_paid=len(found) - len(shown))
+    found.sort(key=lambda m: (m["kind"] != "answer", not m["free_tier"], m["name"]))
+    return GeminiModelList(models=[GeminiModel(**{k: m[k] for k in GeminiModel.model_fields}) for m in found],
+                           free_tier_only=g.free_tier_only, paid_only=sum(not m["free_tier"] for m in found))
 
 
 @router.put("/gemini/key", response_model=ActionResult)

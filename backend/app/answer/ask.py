@@ -66,10 +66,11 @@ class AskService:
             "question TEXT NOT NULL, chunks TEXT NOT NULL, answer TEXT NOT NULL, failed_check TEXT NOT NULL, "
             "detail TEXT NOT NULL, attempt INTEGER NOT NULL, question_log_id INTEGER)")
 
-    async def ask(self, question: str, *, session_id: str, document_ids: list[int] | None = None,
-                  model: str | None = None) -> AsyncIterator[Event]:
+    async def ask(self, question: str, *, session_id: str,
+                  document_ids: list[int] | None = None) -> AsyncIterator[Event]:
+        """Models come from Settings only: the answer model, and per-task models (config.model_for)."""
         async with self._lock:
-            run = _Run(self, question.strip(), session_id, document_ids, model or self.config.models.answer)
+            run = _Run(self, question.strip(), session_id, document_ids, self.config.models.answer)
             async for ev in run.go():
                 yield ev
 
@@ -96,12 +97,17 @@ class _Run:
     def _stage(self, stage: str, detail: str) -> Event:
         return Event("stage", {"stage": stage, "detail": detail, "status": "running"})
 
+    def _where(self) -> str:
+        return "Google Gemini API" if self.cfg.uses_gemini else "running locally"
+
     def _elapsed(self) -> int:
         return int((time.perf_counter() - self.t0) * 1000)
 
     async def _chat(self, purpose: str, prompt: str, schema: dict) -> tuple[dict | None, str]:
-        """One call; returns (parsed JSON or None, raw text). Ollama errors propagate."""
-        out = await self.svc.llm.chat([{"role": "user", "content": prompt}], schema=schema, model=self.model)
+        """One call; returns (parsed JSON or None, raw text). Ollama errors propagate.
+        "sql" and "claim" may have their own model in Settings; the rest use the answer model."""
+        out = await self.svc.llm.chat([{"role": "user", "content": prompt}], schema=schema,
+                                      model=self.cfg.model_for(purpose))
         self.tokens.append({"purpose": purpose, "prompt_tokens": out.prompt_tokens, "output_tokens": out.output_tokens,
                             "ms": int(out.total_ms)})
         try:
@@ -163,7 +169,7 @@ class _Run:
         yield self._stage("searching", "Searching the documents")
         try:
             self.result = await self.svc.retriever.retrieve(
-                self.question, session_id=self.session_id, document_ids=self.document_ids, model=self.model)
+                self.question, session_id=self.session_id, document_ids=self.document_ids)
         except RetrievalError as exc:
             yield self._error(exc.code, exc.message)
             return
@@ -265,7 +271,7 @@ class _Run:
     def steps_write(self, attempt: int, t: float, data: dict, n_passages: int) -> None:
         sentences = data.get("sentences") or []
         self._pending = Step(
-            "Writing the answer", f"{self.model} · running locally", "done",
+            "Writing the answer", f"{self.model} · {self._where()}", "done",
             f"Used {n_passages} passages and tagged every sentence" if attempt == 1 else f"Attempt {attempt}",
             {"raw": self.raw_outputs[-1] if self.raw_outputs else "", "attempt": attempt,
              "sentences": len(sentences)}, _ms(t))
@@ -377,7 +383,8 @@ class _Run:
             data, raw = await self._chat("sql", prompt, SQL_SCHEMA)
             self.raw_outputs.append(raw)
             sql = str((data or {}).get("sql") or "").strip()
-            yield self._step(Step("Writing the query", f"{self.model} · running locally", "done" if sql else "failed",
+            yield self._step(Step("Writing the query", f"{self.cfg.model_for('sql')} · {self._where()}",
+                                  "done" if sql else "failed",
                                   "One read-only SELECT" if sql else "The model wrote no query",
                                   {"sql": sql, "attempt": attempt, "raw": raw}, _ms(t)))
             t = time.perf_counter()

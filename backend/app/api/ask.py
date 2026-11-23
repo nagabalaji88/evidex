@@ -25,8 +25,7 @@ async def ask(body: AskRequest, request: Request):
     async def stream():
         t0 = time.perf_counter()
         try:
-            async for ev in service.ask(body.question, session_id=body.session_id, document_ids=body.document_ids,
-                                        model=body.model):
+            async for ev in service.ask(body.question, session_id=body.session_id, document_ids=body.document_ids):
                 yield sse(ev.event, ev.data)
         except Exception as exc:  # never hang the client
             yield sse("error", {"code": "internal_error", "message": f"Something went wrong: {exc}"})

@@ -104,7 +104,7 @@ class AskRequest(BaseModel):
     question: str
     session_id: str
     document_ids: list[int] | None = None  # None = all active documents
-    model: str | None = None  # None = models.answer from config
+    # No model here: models are chosen in Settings only (config.yaml), never per question.
 
 
 class TraceStep(BaseModel):
@@ -459,8 +459,8 @@ class GeminiModel(BaseModel):
 
 class GeminiModelList(BaseModel):
     models: list[GeminiModel]
-    free_tier_only: bool
-    hidden_paid: int = 0  # models left out because they have no free tier
+    free_tier_only: bool  # true: paid-only models are listed but cannot be picked
+    paid_only: int = 0  # how many listed models have no free tier
     error: str | None = None
 
 

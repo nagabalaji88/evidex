@@ -88,24 +88,25 @@ class Retriever:
 
     # -- small LLM helpers ------------------------------------------------------------------
 
-    async def _llm_json(self, purpose: str, prompt: str, schema: dict, result: RetrievalResult,
-                        model: str | None) -> dict | None:
+    async def _llm_json(self, purpose: str, prompt: str, schema: dict, result: RetrievalResult) -> dict | None:
+        """purpose is also the task name: Settings can give "rewrite" and "route" their own model."""
         if self.llm is None:
             return None
+        model = self.config.model_for(purpose)
         t = time.perf_counter()
         try:
             out = await self.llm.chat([{"role": "user", "content": prompt}], schema=schema, model=model)
             data = json.loads(out.content)
         except (OllamaError, json.JSONDecodeError, TypeError):
             data = None
-        result.llm_calls.append({"purpose": purpose, "model": model or self.config.models.answer,
+        result.llm_calls.append({"purpose": purpose, "model": model,
                                  "ms": int((time.perf_counter() - t) * 1000), "ok": data is not None})
         return data if isinstance(data, dict) else None
 
     # -- pipeline ---------------------------------------------------------------------------
 
-    async def retrieve(self, question: str, *, session_id: str = "", document_ids: list[int] | None = None,
-                       model: str | None = None) -> RetrievalResult:
+    async def retrieve(self, question: str, *, session_id: str = "",
+                       document_ids: list[int] | None = None) -> RetrievalResult:
         cfg = self.config
         question = question.strip()
         result = RetrievalResult(question, question, False, RouteDecision("lookup", ""), document_ids)
@@ -115,7 +116,7 @@ class Retriever:
         if needs_rewrite(question, history):
             t = time.perf_counter()
             prompt = render_prompt("rewrite_prompt.md", history=format_history(history), question=question)
-            data = await self._llm_json("rewrite", prompt, REWRITE_SCHEMA, result, model)
+            data = await self._llm_json("rewrite", prompt, REWRITE_SCHEMA, result)
             rewritten = (data or {}).get("question", "").strip()
             used_fallback = not rewritten
             result.standalone_question = rewritten or fallback_rewrite(question, history)
@@ -136,7 +137,7 @@ class Retriever:
             tables = "; ".join(f"{s['file']}{' / ' + s['sheet'] if s['sheet'] else ''}: "
                                + ", ".join(c["name"] for c in s["columns"]) for s in sch)
             data = await self._llm_json("route", render_prompt("route_prompt.md", tables=tables, question=q),
-                                        LABEL_SCHEMA, result, model)
+                                        LABEL_SCHEMA, result)
             label = (data or {}).get("label")
             return label if label in ("lookup", "calculation") else None
 

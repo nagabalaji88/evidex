@@ -313,8 +313,9 @@ export interface paths {
         put?: never;
         /**
          * Gemini Models
-         * @description The answer and embedding models this API key can use. With gemini.free_tier_only
-         *     (the default) only models with a free tier are listed.
+         * @description Every answer and embedding model this API key can use, each marked free tier or not.
+         *     With gemini.free_tier_only (the default) the page greys out the paid-only ones, and
+         *     saving one is refused.
          */
         post: operations["gemini_models_api_gemini_models_post"];
         delete?: never;
@@ -472,8 +473,6 @@ export interface components {
             session_id: string;
             /** Document Ids */
             document_ids?: number[] | null;
-            /** Model */
-            model?: string | null;
         };
         /** Body_upload_document_api_documents_post */
         Body_upload_document_api_documents_post: {
@@ -814,10 +813,10 @@ export interface components {
             /** Free Tier Only */
             free_tier_only: boolean;
             /**
-             * Hidden Paid
+             * Paid Only
              * @default 0
              */
-            hidden_paid: number;
+            paid_only: number;
             /** Error */
             error?: string | null;
         };

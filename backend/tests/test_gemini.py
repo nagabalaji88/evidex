@@ -250,16 +250,26 @@ def test_key_is_checked_saved_in_env_file_and_never_returned(tmp_path, monkeypat
         assert "EVIDEX_GEMINI_API_KEY" not in env_file_path().read_text(encoding="utf-8")
 
 
-def test_model_endpoint_lists_free_tier_only_with_typed_or_saved_key(tmp_path, monkeypatch):
+def test_model_endpoint_lists_every_model_for_the_key_marked_free_or_paid(tmp_path, monkeypatch):
     c, _ = make_app(tmp_path, FakeGemini(), monkeypatch=monkeypatch)
     with c:
         r = c.post("/api/gemini/models", json={}).json()  # the saved key
+        by = {m["name"]: m for m in r["models"]}
+        assert r["error"] is None and r["free_tier_only"] and r["paid_only"] == 1
+        assert set(by) == {"gemini-2.5-flash", "gemini-3.5-flash-lite", "gemma-4-27b-it", "gemini-4-carbon",
+                           "gemini-embedding-001"}  # all the key offers, apart from non-text models
+        assert by["gemini-4-carbon"]["free_tier"] is False and by["gemini-2.5-flash"]["free_tier"] is True
         names = [m["name"] for m in r["models"]]
-        assert r["error"] is None and r["free_tier_only"] and r["hidden_paid"] == 1
-        assert "gemini-4-carbon" not in names and names[0] == "gemini-2.5-flash"  # answer models first
-        assert {m["kind"] for m in r["models"]} == {"answer", "embedding"} and all(m["free_tier"] for m in r["models"])
+        assert names.index("gemini-4-carbon") > names.index("gemma-4-27b-it")  # free first, then paid
+        assert names[-1] == "gemini-embedding-001"  # answer models first
         r = c.post("/api/gemini/models", json={"api_key": OTHER}).json()  # a typed key, not saved
         assert r["models"] == [] and "refused" in r["error"]
+        # A task model is checked like the answer model.
+        r = c.put("/api/settings", json={"changes": {"gemini.sql_model": "gemini-4-carbon"}})
+        assert r.status_code == 422 and "sql_model" in r.json()["detail"]
+        r = c.put("/api/settings", json={"changes": {"gemini.sql_model": "gemini-2.5-flash"}}).json()
+        assert r["saved"] and c.app.state.config.model_for("sql") == "gemini-2.5-flash"
+        assert c.app.state.config.model_for("rewrite") == c.app.state.config.models.answer
 
 
 def test_toggle_switches_provider_live_and_asks_to_reindex(tmp_path, monkeypatch):

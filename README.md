@@ -52,9 +52,14 @@ Then follow `docs/claude-code-guide.md`, starting with `/milestone 1`.
 By default answers and embeddings come from the Google Gemini API (`provider.use_local_models:
 false` in `config.yaml`). Open Settings > AI models, paste an API key from
 aistudio.google.com/api-keys and click Save key: Evidex checks it with Google, saves it in `.env`
-as `EVIDEX_GEMINI_API_KEY` (never in `config.yaml`, never shown again), and lists the models that
-key can use. Only models in `gemini.free_tier_models` (taken from Google's pricing page) are listed
-or accepted while `gemini.free_tier_only` is true. Pick the answer and embedding models, then Save.
+as `EVIDEX_GEMINI_API_KEY` (never in `config.yaml`, never shown again), and lists every model that
+key can use, marked free tier or paid only. While `gemini.free_tier_only` is true, only models in
+`gemini.free_tier_models` (taken from Google's pricing page) can be picked; paid-only ones are
+greyed out and refused on save. Pick the answer and embedding models, and optionally a different
+model for follow-up rewriting, question routing, SQL writing or the claim check, then Save.
+
+Settings is the only place models are chosen: the Chat page shows the answer model in use and
+links to Settings.
 
 - The free tier applies only when the key's Google Cloud project has no billing account. With
   billing on, Google charges for every request, whichever model you pick.

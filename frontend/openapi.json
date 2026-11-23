@@ -668,7 +668,7 @@
     "/api/gemini/models": {
       "post": {
         "summary": "Gemini Models",
-        "description": "The answer and embedding models this API key can use. With gemini.free_tier_only\n(the default) only models with a free tier are listed.",
+        "description": "Every answer and embedding model this API key can use, each marked free tier or not.\nWith gemini.free_tier_only (the default) the page greys out the paid-only ones, and\nsaving one is refused.",
         "operationId": "gemini_models_api_gemini_models_post",
         "requestBody": {
           "content": {
@@ -1079,17 +1079,6 @@
               }
             ],
             "title": "Document Ids"
-          },
-          "model": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model"
           }
         },
         "type": "object",
@@ -1985,9 +1974,9 @@
             "type": "boolean",
             "title": "Free Tier Only"
           },
-          "hidden_paid": {
+          "paid_only": {
             "type": "integer",
-            "title": "Hidden Paid",
+            "title": "Paid Only",
             "default": 0
           },
           "error": {
