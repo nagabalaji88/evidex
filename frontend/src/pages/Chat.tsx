@@ -4,8 +4,9 @@ import { fileType, modelLabel, sessionId, stripExt } from "../app/format";
 import { getJSON } from "../api/client";
 import { ConnectionLost, postStream } from "../api/stream";
 import type { ActivityList, AnswerPayload, AskRequest, DocumentList, DocumentSummary, TraceResponse } from "../api/types";
-import { AnswerCard, AnswerDetails, ErrorCard, FileType, WorkingCard, secs, summaryOf } from "../components/AnswerCard";
-import { Trace, questionSteps, type UiStep } from "../components/Trace";
+import { AnswerCard, AnswerDetails, ErrorCard, FileType, WorkingCard } from "../components/AnswerCard";
+import { LiveRail } from "../components/LiveRail";
+import { Trace, questionSteps } from "../components/Trace";
 import { chatReducer, initialChat, runningTitle, totalSteps, type ChatMessage } from "./chatState";
 
 let counter = 0;
@@ -70,8 +71,9 @@ export default function Chat() {
   const [sel, setSel] = useState<Record<number, boolean>>({});
   const [input, setInput] = useState("");
   const [suggest, setSuggest] = useState<string[]>([]);
-  // The side panel is a small summary until "Expand" or an answer's "More" opens it fully.
-  const [expanded, setExpanded] = useState(false);
+  // The side panel is a slim step rail; "open" adds labels and the score; "details" adds evidence and every step.
+  const [view, setView] = useState<"rail" | "open" | "details">("rail");
+  const expanded = view === "details";
   const threadRef = useRef<HTMLDivElement>(null);
   const traceRef = useRef<HTMLDivElement>(null);
   const busy = state.messages.some((m) => m.status === "working");
@@ -137,7 +139,7 @@ export default function Chat() {
   }
 
   async function show(m: ChatMessage, expand = true) {
-    if (expand) setExpanded(state.selected === m.id ? !expanded : true);
+    if (expand) setView(state.selected === m.id && expanded ? "open" : "details");
     dispatch({ type: "select", id: m.id });
     const tid = m.answer?.trace_id;
     if (tid && !m.steps.length) {
@@ -164,7 +166,7 @@ export default function Chat() {
   const modelName = (n: string) => modelLabel(n);
 
   return (
-    <div className="ws">
+    <div className={`ws${view === "rail" ? " ws-rail" : ""}`}>
       <section className="col" aria-label="Conversation">
         <div className="col-head">
           <h2>Ask your documents</h2>
@@ -209,65 +211,60 @@ export default function Chat() {
           </form>
         </div>
       </section>
-      <aside className="col" aria-label="Behind the scenes">
-        <div className="col-head">
-          <div className="col-head-row">
-            <h2>Behind the scenes</h2>
-            {selected ? (
-              <button type="button" className="mini more" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
-                {expanded ? "Show less" : "Expand"}
+      {view === "rail" ? (
+        <aside className="col rail-col" aria-label="Behind the scenes">
+          <button type="button" className={`rail-open${selected?.status === "working" ? " live" : ""}`}
+            onClick={() => setView("open")} title="Behind the scenes: open" aria-label="Open behind the scenes">
+            <RouteIcon />
+          </button>
+          <div className="scroll" onClick={() => setView("open")} title="Open behind the scenes">
+            {selected ? <LiveRail key={`${selected.id}-${selected.startedAt}`} rid={`${selected.id}-${selected.startedAt}`} m={selected} open={false} /> : null}
+          </div>
+        </aside>
+      ) : (
+        <aside className="col" aria-label="Behind the scenes">
+          <div className="col-head">
+            <div className="col-head-row">
+              <h2>Behind the scenes</h2>
+              {selected?.status === "working" ? <span className="rr-live"><i />Live</span> : null}
+              <button type="button" className="mini more" aria-label="Collapse behind the scenes" onClick={() => setView("rail")}>
+                Collapse
               </button>
-            ) : null}
+            </div>
+            <p>{selected ? `“${selected.request.question}”` : "Every step the agent takes, as it happens"}</p>
           </div>
-          <p>{selected ? `“${selected.request.question}”` : "Every step the agent takes, as it happens"}</p>
-        </div>
-        <div className="scroll" ref={traceRef}>
-          <div className="pad">
-            {!selected || !expanded ? (
-              <PanelSummary m={selected} steps={traceSteps} onExpand={() => setExpanded(true)} />
-            ) : (
-              <>
-                {selected.status === "complete" && selected.answer ? <AnswerDetails a={selected.answer as AnswerPayload} /> : null}
-                <h4 className="details-h">Every step</h4>
-                <Trace key={selected.id} steps={traceSteps} kind="question" done={selected.status !== "working"}
-                  empty="Ask a question to see how it is understood, searched, ranked, answered and checked." />
-              </>
-            )}
+          <div className="scroll" ref={traceRef}>
+            <div className="pad">
+              {!selected ? (
+                <div className="tr-empty"><b>Nothing running yet</b>Ask a question. Each step appears here as it happens.</div>
+              ) : (
+                <>
+                  <LiveRail key={`${selected.id}-${selected.startedAt}`} rid={`${selected.id}-${selected.startedAt}`} m={selected} open detailsOn={expanded}
+                    onDetails={() => setView(expanded ? "open" : "details")} />
+                  {expanded ? (
+                    <>
+                      {selected.status === "complete" && selected.answer ? <AnswerDetails a={selected.answer as AnswerPayload} /> : null}
+                      <h4 className="details-h">Every step</h4>
+                      <Trace key={selected.id} steps={traceSteps} kind="question" done={selected.status !== "working"}
+                        empty="Ask a question to see how it is understood, searched, ranked, answered and checked." />
+                    </>
+                  ) : null}
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
+      )}
     </div>
   );
 }
 
-/** The collapsed side panel: step dots and three numbers, nothing more. */
-function PanelSummary({ m, steps, onExpand }: { m: ChatMessage | null; steps: UiStep[] | null; onExpand: () => void }) {
-  if (!m || !steps) {
-    return <div className="tr-empty"><b>Nothing running yet</b>Ask a question. A short summary of how it was answered appears here.</div>;
-  }
-  const a = m.status === "complete" ? (m.answer as AnswerPayload | undefined) : undefined;
-  const s = a ? summaryOf(a) : null;
-  const shown = steps.filter((x) => x.status !== "skipped" && x.status !== "pending");
-  const last = steps.filter((x) => x.status === "active").at(-1);
+function RouteIcon() {
   return (
-    <div className="psum">
-      <div className="stepdots" aria-label={`${shown.length} steps`}>
-        {shown.map((x) => <i key={x.key} className={x.status} title={`${x.title}${x.summary ? `: ${x.summary}` : ""}`} />)}
-        <span>{m.status === "working" ? `${last?.title ?? "Working"}…` : `${shown.length} step${shown.length === 1 ? "" : "s"}`}
-          {a ? ` · ${secs(a.elapsed_ms ?? 0)}` : ""}</span>
-      </div>
-      {s && a?.kind !== "chat" ? (
-        <div className="tiles">
-          <div className={`tile conf-${s.conf?.k ?? "none"}`}><b>{s.conf?.short ?? "—"}</b><small>Confidence</small></div>
-          <div className={`tile${s.sources ? "" : " dim"}`}><b>{s.sources}</b><small>Source{s.sources === 1 ? "" : "s"}</small></div>
-          <div className="tile"><b>{s.checks ? `${s.passed}/${s.checks}` : "—"}</b><small>Checks passed</small></div>
-        </div>
-      ) : null}
-      {a?.kind === "chat" ? <p className="note">Small talk: no search and no AI call.</p> : null}
-      <button type="button" className="linkbtn" onClick={onExpand}>
-        {m.status === "working" ? "Watch every step" : "See confidence, checks, evidence and every step"} ›
-      </button>
-    </div>
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={1.8}
+      strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="6" cy="19" r="2" /><circle cx="18" cy="5" r="2" /><path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16" />
+    </svg>
   );
 }
 
