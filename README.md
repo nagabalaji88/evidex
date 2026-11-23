@@ -64,8 +64,8 @@ Copy-Item .env.example .env
 ## Running
 
 On Windows, `evidex.bat` in the repo root does the steps below for you. It installs only what is
-missing (backend\.venv and packages, .env, the Ollama models from config.yaml, the front-end
-build), then starts the app:
+missing (backend\.venv and packages, .env, the front-end build), then starts the app. It does not
+pull Ollama models: set the model server, model names and API key in `.env`.
 
 ```powershell
 .\evidex.bat           # install if needed, then run at http://localhost:8000
