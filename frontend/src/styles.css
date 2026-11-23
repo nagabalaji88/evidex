@@ -601,3 +601,32 @@ button.mini{cursor:pointer}
 .sc-tech{display:inline-block;font:500 11px var(--mono);color:var(--muted);background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:1px 6px;margin-bottom:8px}
 .sc-b .sb{margin:0}
 @media (prefers-reduced-motion:reduce){.sc.active::before,.sc-rail i{animation:none}.sc-coll{transition:none}}
+
+/* ---------- One-button menu: grows downward into a column of icons; names slide out on hover ---------- */
+.navm{position:relative;width:46px;height:46px;flex:none}
+.navm-pop{position:absolute;left:0;top:0;z-index:60;width:46px;border-radius:14px;transition:width .3s ease}
+/* The panel's card is a separate layer, so it can grow downward while the names slide out past its edge. */
+.navm-pop::before{content:'';position:absolute;inset:0;border-radius:14px;background:var(--input-bg);border:1px solid var(--line)}
+.navm-pop.open{width:56px}
+.navm-pop.open::before{box-shadow:0 18px 40px -14px rgba(0,0,0,0.35);animation:navm-grow .45s cubic-bezier(.2,.9,.3,1) both}
+@keyframes navm-grow{from{clip-path:inset(0 0 calc(100% - 46px) 0 round 14px)}to{clip-path:inset(-40px round 14px)}}
+.navm-btn{position:relative;width:44px;height:44px;margin:1px;display:grid;place-items:center;border:0;border-radius:13px;background:transparent;color:var(--ink);cursor:pointer;transition:background .2s,color .2s}
+.navm-btn:hover{color:var(--accent)}
+.navm-pop.open .navm-btn{background:var(--g1);color:#fff;margin:6px}
+.navm-btn:focus-visible,.navm-i:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.navm-list{position:relative;display:flex;flex-direction:column;gap:4px;padding:4px 6px 8px}
+.navm-i,.navm-who{animation:navm-in .3s ease both}
+@keyframes navm-in{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+.navm-i{position:relative;display:grid;place-items:center;width:44px;height:42px;border-radius:12px;color:var(--muted);text-decoration:none}
+.navm-i svg{position:relative;z-index:1}
+.navm-i:hover,.navm-i:focus-visible,.navm-i.cur{background:var(--g1);color:#fff}
+.navm-i:hover,.navm-i:focus-visible{border-radius:12px 0 0 12px}
+/* The page name: a gradient tab that wipes out to the right, joined to the icon. */
+.navm-lb{position:absolute;left:44px;top:0;bottom:0;display:flex;align-items:center;padding:0 14px 0 8px;white-space:nowrap;font-size:13px;font-weight:600;color:#fff;
+  background:var(--g1);border-radius:0 12px 12px 0;pointer-events:none;clip-path:inset(0 100% 0 0);transition:clip-path .32s cubic-bezier(.2,.9,.3,1)}
+.navm-i:hover .navm-lb,.navm-i:focus-visible .navm-lb{clip-path:inset(0 0 0 0)}
+.navm-who{position:relative;display:grid;place-items:center;width:44px;height:44px;margin-top:4px;padding-top:6px;border-top:1px solid var(--line)}
+.navm-who .av{width:34px;height:34px;border-radius:50%;background:var(--g2);color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px}
+.navm-who .navm-lb{left:44px;top:10px;bottom:0;background:var(--g2);border-radius:999px;padding:0 12px;font-weight:500}
+.navm-who:hover .navm-lb{clip-path:inset(0 0 0 0)}
+@media (prefers-reduced-motion:reduce){.navm-pop.open::before,.navm-i,.navm-who{animation:none}.navm-lb{transition:none}}
