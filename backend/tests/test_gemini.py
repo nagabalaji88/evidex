@@ -18,7 +18,7 @@ from app.llm import make_clients
 from app.main import create_app
 from app.ollama_client import OllamaError
 
-from .conftest import SAMPLE_DOCS, FakeOllama, FakeReranker, ScriptedLLM, answer_with, config_dict
+from .conftest import repo_config_text, SAMPLE_DOCS, FakeOllama, FakeReranker, ScriptedLLM, answer_with, config_dict
 from .test_documents_api import parse_sse, upload
 from .test_env import FakeOpenAI
 
@@ -82,7 +82,7 @@ class FakeGemini:
 
 
 def gemini_text(**gemini) -> str:
-    text = DEFAULT_CONFIG_PATH.read_text(encoding="utf-8").replace("rate_limit_wait_seconds: 20",
+    text = repo_config_text().replace("rate_limit_wait_seconds: 20",
                                                                     "rate_limit_wait_seconds: 0.01")
     for k, v in gemini.items():
         text = text.replace(f"  {k}: ", f"  {k}: {v}  # was: ", 1)

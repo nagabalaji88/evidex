@@ -11,7 +11,16 @@ from app.config import DEFAULT_CONFIG_PATH, Config, parse_config
 
 
 def config_dict() -> dict:
-    return yaml.safe_load(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
+    return yaml.safe_load(repo_config_text())
+
+
+def repo_config_text() -> str:
+    """The repo config.yaml, with the reranker on: tests cover the spec's full pipeline with a
+    fake reranker (the repo default is off, so no local model is needed to run the app)."""
+    text = DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")
+    on = text.replace("  enabled: false           # a local model", "  enabled: true            # a local model", 1)
+    assert on != text, "reranker.enabled line in config.yaml changed; update repo_config_text()"
+    return on
 
 
 def make_config(tmp_path: Path, **overrides) -> Config:

@@ -34,7 +34,7 @@ export const GROUPS: { title: string; fields: Field[] }[] = [
     { key: "models.answer", label: "Answer model", help: "Writes answers and SQL. Only tested models are recommended.", kind: "select", options: [] },
     { key: "models.embedding", label: "Embedding model", help: "Changing it re-indexes every document.", kind: "select",
       options: [["nomic-embed-text", "nomic-embed-text"], ["bge-m3", "bge-m3 (multilingual)"]] },
-    { key: "reranker.enabled", label: "Reranker", help: "Re-scores search results. More reliable refusals, about 3 s slower.", kind: "switch" },
+    { key: "reranker.enabled", label: "Reranker", help: "Re-scores search results with a local model on this computer. Needs backend\\requirements-local.txt.", kind: "switch" },
   ] },
   { title: "Answer generation", fields: [
     { key: "ollama.temperature", label: "Temperature", help: "Lower means more consistent, less creative answers.", kind: "range", min: 0, max: 1, step: 0.05 },

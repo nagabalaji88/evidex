@@ -37,7 +37,7 @@ ollama:
   timeout_seconds: 120
 
 reranker:
-  enabled: true            # evaluation compares on/off
+  enabled: false           # a local model: needs backend\requirements-local.txt. Evaluation compares on/off
   model: BAAI/bge-reranker-base
   max_pair_tokens: 512
   cpu_threads: 4

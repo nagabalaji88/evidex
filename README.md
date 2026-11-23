@@ -85,23 +85,26 @@ Copy-Item .env.example .env
 
 ## Running
 
-On Windows, `evidex.bat` in the repo root does the steps below for you. It installs only what is
-missing (backend\.venv and packages, .env, the front-end build), then starts the app. It does not
-pull Ollama models: set the model server, model names and API key in `.env`.
+On Windows, double-click `evidex.bat` in the repo root (or run `.\evidex.bat`). Every run:
 
-```powershell
-.\evidex.bat           # install if needed, then run at http://localhost:8000
-.\evidex.bat dev       # API with --reload plus the Vite dev server on http://localhost:5173
-.\evidex.bat install   # install or update everything, then stop
-```
+1. Backend: creates `backend\.venv` (Python 3.12) and installs `backend\requirements.txt`, again
+   whenever that file changes.
+2. Settings: creates `.env` from `.env.example` if it is missing.
+3. Front end: installs the npm packages (again when `package-lock.json` changes) and builds the
+   web page, again whenever the front-end code changes (for example after a `git pull`).
+4. Launch: starts Evidex at http://localhost:8000 and opens it in your browser.
+
+It needs Python 3.12 and Node.js LTS. It installs and starts no local AI models: answers come from
+the Gemini API, set up in Settings. The optional local reranker (PyTorch and a 1 GB model) is in
+`backend\requirements-local.txt` and is off by default (`reranker.enabled: false`).
 
 The same steps by hand:
 
 ```powershell
 # Backend (first time)
 cd backend; python -m venv .venv
-.venv\Scripts\python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 .venv\Scripts\python -m pip install -r requirements.txt
+# Optional local reranker only: requirements-local.txt (see the comments in that file)
 .venv\Scripts\python -m pytest -q                         # backend tests
 .venv\Scripts\python -m app.setup_check                   # health + benchmark -> docs/benchmarks.md
 

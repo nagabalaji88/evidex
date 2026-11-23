@@ -149,10 +149,10 @@ def test_write_config_keeps_comments(tmp_path):
     p = tmp_path / "config.yaml"
     p.write_text((REPO_ROOT / "config.yaml").read_text(encoding="utf-8"), encoding="utf-8")
     mod.set_config_value(p, "retrieval", "relevance_threshold", 0.27)
-    mod.set_config_value(p, "reranker", "enabled", False)
+    mod.set_config_value(p, "reranker", "enabled", True)
     text = p.read_text(encoding="utf-8")
     assert "relevance_threshold: 0.27   # placeholder, set by evaluation" in text
-    assert "enabled: false            # evaluation compares on/off" in text
+    assert "enabled: true           # a local model" in text  # value changed, comment kept
     cfg = load_config(p)
-    assert cfg.retrieval.relevance_threshold == 0.27 and cfg.reranker.enabled is False
+    assert cfg.retrieval.relevance_threshold == 0.27 and cfg.reranker.enabled is True
     assert cfg.retrieval.vector_threshold == 0.55  # untouched

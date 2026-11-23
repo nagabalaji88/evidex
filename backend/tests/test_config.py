@@ -27,7 +27,10 @@ def test_repo_config_matches_spec_section_9():
     """M1: check config.yaml against section 9 (same keys and values), apart from the
     sections added later for the Gemini API."""
     data = yaml.safe_load(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
-    assert {k: v for k, v in data.items() if k not in NOT_IN_SPEC} == spec_example_config()
+    spec = spec_example_config()
+    # The owner asked for no local models by default: the reranker (a local model) is off.
+    assert data["reranker"].pop("enabled") is False and spec["reranker"].pop("enabled") is True
+    assert {k: v for k, v in data.items() if k not in NOT_IN_SPEC} == spec
 
 
 def test_repo_config_loads_and_validates():

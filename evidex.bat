@@ -1,29 +1,24 @@
 @echo off
-rem Evidex on Windows: installs whatever is missing, then starts the app.
-rem   evidex.bat           install if needed, then run at http://localhost:8000
-rem   evidex.bat dev       same, but the API reloads on code changes and the Vite dev server
-rem                        runs in a second window at http://localhost:5173
-rem   evidex.bat install   install or update everything (packages, front-end build), then stop
-rem Stop the app with Ctrl+C (in dev mode, also close the second window).
-rem
-rem What "install" covers (each step is skipped when already done):
-rem   1. backend\.venv with Python 3.12, CPU PyTorch and backend\requirements.txt
-rem      (reinstalled when requirements.txt changes)
-rem   2. .env copied from .env.example if it does not exist yet
-rem   3. the front end built into frontend\dist (skipped if Node.js is not installed)
-rem Models are not installed here: set the model server, model names and API key in .env.
+rem Evidex on Windows: double-click (or run evidex.bat). Every run does the same steps:
+rem   1. Backend:   backend\.venv (Python 3.12) with backend\requirements.txt
+rem                 (installed the first time, reinstalled when requirements.txt changes)
+rem   2. Settings:  .env created from .env.example if missing (the Gemini key is set in the app)
+rem   3. Front end: npm packages (when package-lock.json changes) and the build in frontend\dist
+rem                 (rebuilt whenever the front-end code changes, e.g. after a git pull)
+rem   4. Launch:    starts Evidex at http://localhost:8000 and opens it in your browser
+rem No local AI models are installed or started: answers come from the Gemini API, chosen in
+rem Settings. (The optional local reranker is in backend\requirements-local.txt; not used here.)
+rem Stop Evidex with Ctrl+C or by closing this window.
 setlocal
 cd /d "%~dp0"
-set "MODE=%~1"
-if /i "%MODE%"=="install" (set "FORCE=1") else (set "FORCE=")
-if not "%MODE%"=="" if /i not "%MODE%"=="dev" if /i not "%MODE%"=="install" (
-    echo Unknown option "%MODE%". Use: evidex.bat, evidex.bat dev or evidex.bat install
-    exit /b 1
-)
+set "PY=backend\.venv\Scripts\python.exe"
+set "URL=http://localhost:8000"
+rem So "python -m app.launcher" works from the repo root.
+set "PYTHONPATH=%~dp0backend"
 
-rem ---- 1. Python environment ----
-if exist "backend\.venv\Scripts\python.exe" goto :venv_ready
-echo === Creating the Python environment (backend\.venv) ===
+rem ---- 1. Backend ----
+echo [1/4] Backend
+if exist "%PY%" goto :venv_ready
 set "PYEXE="
 where py >nul 2>nul && py -3.12 -c "import sys" >nul 2>nul && set "PYEXE=py -3.12"
 if not defined PYEXE (
@@ -33,78 +28,73 @@ if not defined PYEXE (
     echo Python 3.12 was not found. Install it from https://www.python.org/downloads/ and run evidex.bat again.
     goto :fail
 )
+echo       Creating backend\.venv with %PYEXE% ...
 %PYEXE% -m venv backend\.venv || goto :fail
 :venv_ready
 set "STAMP=backend\.venv\requirements.installed"
-if not defined FORCE if exist "%STAMP%" fc /b "%STAMP%" "backend\requirements.txt" >nul 2>nul && goto :packages_ready
-echo === Installing Python packages ===
-backend\.venv\Scripts\python -m pip install --upgrade pip || goto :fail
-rem CPU-only PyTorch first (for the reranker), so pip does not download the much larger CUDA build.
-backend\.venv\Scripts\python -m pip install torch --index-url https://download.pytorch.org/whl/cpu || goto :fail
-backend\.venv\Scripts\python -m pip install -r backend\requirements.txt || goto :fail
+if exist "%STAMP%" fc /b "%STAMP%" "backend\requirements.txt" >nul 2>nul && goto :backend_ready
+echo       Installing Python packages ...
+"%PY%" -m pip install --upgrade pip || goto :fail
+"%PY%" -m pip install -r backend\requirements.txt || goto :fail
 copy /y "backend\requirements.txt" "%STAMP%" >nul
-:packages_ready
+:backend_ready
+"%PY%" -c "import fastapi, uvicorn, chromadb, httpx, pdfplumber" >nul 2>nul
+if errorlevel 1 (
+    echo       Some Python packages are missing; reinstalling ...
+    "%PY%" -m pip install -r backend\requirements.txt || goto :fail
+)
+echo       ready
 
 rem ---- 2. Settings file ----
+echo [2/4] Settings
 if not exist ".env" (
     copy /y ".env.example" ".env" >nul || goto :fail
-    echo Created .env from .env.example. Set your model server, model names and API key in it,
-    echo then restart evidex.bat. Until then, answers will fail.
+    echo       Created .env. Add your Gemini API key in the app: Settings, AI models.
+) else (
+    echo       .env found
 )
 
 rem ---- 3. Front end ----
-:frontend
+echo [3/4] Front end
 where npm >nul 2>nul
 if errorlevel 1 (
-    echo Note: Node.js is not installed, so only the API runs. Install the LTS version from https://nodejs.org
-    goto :installed
+    echo Node.js was not found. The web page needs it. Install the LTS version from https://nodejs.org
+    echo and run evidex.bat again.
+    goto :fail
 )
-if not defined FORCE if exist "frontend\node_modules" goto :npm_ready
-echo === Installing front-end packages ===
+set "NPMSTAMP=frontend\node_modules\.package-lock.installed"
+if exist "%NPMSTAMP%" fc /b "%NPMSTAMP%" "frontend\package-lock.json" >nul 2>nul && goto :npm_ready
+echo       Installing front-end packages ...
 pushd frontend
 call npm install || (popd & goto :fail)
 popd
+copy /y "frontend\package-lock.json" "%NPMSTAMP%" >nul
 :npm_ready
-if /i "%MODE%"=="dev" goto :installed
-if not defined FORCE if exist "frontend\dist\index.html" goto :installed
-echo === Building the front end ===
+set "FEHASH="
+for /f "usebackq delims=" %%H in (`"%PY%" -m app.launcher frontend-hash`) do set "FEHASH=%%H"
+set "FESTAMP=frontend\dist\.build-hash"
+set "BUILT="
+if exist "frontend\dist\index.html" if exist "%FESTAMP%" set /p BUILT=<"%FESTAMP%"
+if defined FEHASH if "%BUILT%"=="%FEHASH%" goto :frontend_ready
+echo       Building the web page ...
 pushd frontend
 call npm run build || (popd & goto :fail)
 popd
+if defined FEHASH (>"%FESTAMP%" echo %FEHASH%)
+:frontend_ready
+echo       ready
 
-:installed
-if defined FORCE (
-    echo.
-    echo Installation finished. Start Evidex with evidex.bat
-    endlocal
-    exit /b 0
-)
-
-rem ---- Run ----
-if /i "%MODE%"=="dev" goto :dev
-echo.
-echo Starting Evidex at http://localhost:8000  (health check: http://localhost:8000/api/health)
+rem ---- 4. Launch ----
+echo [4/4] Starting Evidex at %URL%  (Ctrl+C or close this window to stop)
+start "" /b "%PY%" -m app.launcher open %URL%
 cd backend
 .venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-endlocal
-exit /b %errorlevel%
-
-:dev
-where npm >nul 2>nul
-if errorlevel 1 (
-    echo Node.js is needed for dev mode. Install it from https://nodejs.org or run evidex.bat without "dev".
-    goto :fail
-)
-start "Evidex front end (Vite)" cmd /k "cd /d ""%~dp0frontend"" && npm run dev"
-echo.
-echo Starting the API with auto-reload. Open http://localhost:5173
-cd backend
-.venv\Scripts\python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 endlocal
 exit /b %errorlevel%
 
 :fail
 echo.
 echo Stopped because of the error above.
+pause
 endlocal
 exit /b 1

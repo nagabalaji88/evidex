@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from app.config import DEFAULT_CONFIG_PATH, parse_config
 from app.main import create_app
 
-from .conftest import SAMPLE_DOCS, FakeEmbedder, FakeOllama, FakeReranker, ScriptedLLM, answer_with
+from .conftest import repo_config_text, SAMPLE_DOCS, FakeEmbedder, FakeOllama, FakeReranker, ScriptedLLM, answer_with
 from .test_documents_api import parse_sse, upload
 
 V1 = SAMPLE_DOCS / "versions" / "v1" / "refund_policy.docx"
@@ -21,7 +21,7 @@ V2 = SAMPLE_DOCS / "versions" / "v2" / "refund_policy.docx"
 def make_client(tmp_path, script=None, models=None, config_text=None):
     cfg_file = tmp_path / "config.yaml"
     # Local models (the Settings toggle on); the Gemini tests are in test_gemini.py.
-    text = DEFAULT_CONFIG_PATH.read_text(encoding="utf-8").replace("use_local_models: false", "use_local_models: true")
+    text = repo_config_text().replace("use_local_models: false", "use_local_models: true")
     cfg_file.write_text(config_text or text, encoding="utf-8")
     cfg = parse_config(yaml.safe_load(cfg_file.read_text(encoding="utf-8")), base_dir=tmp_path)
     ollama = FakeOllama(chat_reply=script, **({"models": models} if models else {}))

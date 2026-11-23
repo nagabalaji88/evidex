@@ -19,8 +19,13 @@ class Reranker(Protocol):
 
 class CrossEncoderReranker:
     def __init__(self, config: Config):
-        import torch
-        from sentence_transformers import CrossEncoder
+        try:
+            import torch
+            from sentence_transformers import CrossEncoder
+        except ImportError as exc:
+            raise RuntimeError(
+                "the local reranker packages are not installed. Switch the reranker off in Settings, or run: "
+                "cd backend; .venv\\Scripts\\python -m pip install -r requirements-local.txt") from exc
 
         rc = config.reranker
         torch.set_num_threads(rc.cpu_threads)

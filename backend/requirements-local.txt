@@ -1,0 +1,8 @@
+# Optional: the local reranker (spec section 2), BAAI/bge-reranker-base run on this computer's CPU.
+# Not installed by evidex.bat. Only needed to switch on Settings > Models > Reranker:
+#   cd backend
+#   .venv\Scripts\python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   .venv\Scripts\python -m pip install -r requirements-local.txt
+# The first start then downloads the model (about 1 GB) from Hugging Face.
+sentence-transformers>=3.0
+torch>=2.2

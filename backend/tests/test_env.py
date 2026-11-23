@@ -17,7 +17,7 @@ from app.main import create_app
 from app.ollama_client import OllamaClient, OllamaError
 from app.openai_client import OpenAICompatClient
 
-from .conftest import SAMPLE_DOCS, FakeOllama, FakeReranker, ScriptedLLM, answer_with
+from .conftest import repo_config_text, SAMPLE_DOCS, FakeOllama, FakeReranker, ScriptedLLM, answer_with
 from .conftest import config_dict as repo_config_dict
 from .test_documents_api import parse_sse, upload
 
@@ -55,7 +55,7 @@ def test_parse_env_text():
 
 def write_cfg(tmp_path):
     p = tmp_path / "config.yaml"
-    p.write_text(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8").replace("use_local_models: false",
+    p.write_text(repo_config_text().replace("use_local_models: false",
                                                                           "use_local_models: true"), encoding="utf-8")
     return p
 
