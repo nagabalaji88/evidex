@@ -23,6 +23,7 @@ from ..ollama_client import OllamaClient, OllamaError
 from ..prompts import render_prompt
 from ..retrieval.retriever import RetrievalError, RetrievalResult, Retriever, Step
 from ..retrieval.route import RouteDecision
+from . import smalltalk
 from ..sqlpath.sql import NO_ROWS_MESSAGE, SqlRejected, describe_tables, run_sql, validate_sql
 from ..store.sqlite import Database, now_iso
 from .schema import ANSWER_SCHEMA, REFUSAL_PHRASE
@@ -166,10 +167,16 @@ class _Run:
         if not self.question:
             yield Event("error", {"code": "empty_question", "message": "Type a question first."})
             return
+        talk = smalltalk.classify(self.question)
+        if talk.reply_only:
+            for ev in self._smalltalk(talk):
+                yield ev
+            return
         yield self._stage("searching", "Searching the documents")
         try:
+            # A leading greeting ("Hi, what is ...") is left out of the search.
             self.result = await self.svc.retriever.retrieve(
-                self.question, session_id=self.session_id, document_ids=self.document_ids)
+                talk.rest or self.question, session_id=self.session_id, document_ids=self.document_ids)
         except RetrievalError as exc:
             yield self._error(exc.code, exc.message)
             return
@@ -191,6 +198,25 @@ class _Run:
             yield self._error("ollama_unavailable", f"The model server is not available: {exc}")
         except AskError as exc:
             yield self._error(exc.code, exc.message)
+
+    def _smalltalk(self, talk: smalltalk.SmallTalk) -> list[Event]:
+        """A friendly reply to "hi", "thanks", "what can you do?": no search and no AI call.
+        Logged (outcome "smalltalk", left out of the answer statistics) but not added to the
+        conversation history, so follow-up questions still refer to real questions."""
+        n = self.db.one("SELECT COUNT(*) AS n FROM versions WHERE status = 'active'")["n"]
+        if self.document_ids is not None:
+            n = len(self.document_ids)
+        step = Step("Small talk", "no search needed", "done", "A friendly reply; no documents searched, no AI call",
+                    {"kinds": list(talk.kinds)})
+        step_event = self._step(step)
+        empty = RetrievalResult(self.question, self.question, False, RouteDecision("lookup", ""), self.document_ids)
+        payload = self._base_payload(kind="chat", found_in_document=False, answer=smalltalk.reply(talk, n),
+                                     not_evaluated=False, elapsed_ms=self._elapsed())
+        payload["trace_id"] = log_question(self.db, empty, session_id=self.session_id, outcome="smalltalk",
+                                           steps=[step.as_dict()], model=None,
+                                           answer=payload["answer"], answer_json=payload,
+                                           total_ms=payload["elapsed_ms"])
+        return [step_event, Event("answer", payload)]
 
     # -- text path ----------------------------------------------------------------------------
 

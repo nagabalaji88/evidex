@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { timeTxt } from "../app/format";
 import { getJSON } from "../api/client";
 import type { ActivityList, ActivityRow, StreamEvent, TraceResponse, UploadSteps } from "../api/types";
-import { AnswerCard } from "../components/AnswerCard";
+import { AnswerDetails } from "../components/AnswerCard";
 import { Trace, questionSteps, type UiStep } from "../components/Trace";
 import { replayUpload } from "./uploadState";
 
@@ -92,8 +92,9 @@ export default function Activity() {
           </section>
           {open.trace?.answer ? (
             <section className="card">
-              <h2 style={{ marginBottom: 10 }}>Answer as shown</h2>
-              <AnswerCard a={open.trace.answer} selected onHow={() => undefined} />
+              <h2 style={{ marginBottom: 10 }}>Answer</h2>
+              <p className="ans-text" style={{ marginBottom: 12 }}>{open.trace.answer.answer}</p>
+              <AnswerDetails a={open.trace.answer} />
             </section>
           ) : null}
         </div>

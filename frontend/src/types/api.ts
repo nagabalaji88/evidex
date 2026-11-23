@@ -379,7 +379,7 @@ export interface components {
              * Result
              * @enum {string}
              */
-            result: "answered" | "refused" | "error" | "indexed" | "duplicate" | "rejected" | "failed";
+            result: "answered" | "refused" | "error" | "chat" | "indexed" | "duplicate" | "rejected" | "failed";
             /** Confidence */
             confidence: string;
             /** Source */
@@ -400,7 +400,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "text" | "calculation" | "refusal";
+            kind: "text" | "calculation" | "refusal" | "chat";
             /** Found In Document */
             found_in_document: boolean;
             /** Answer */

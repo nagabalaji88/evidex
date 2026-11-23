@@ -450,3 +450,42 @@ input[type=file].sr{position:absolute}
 /* Chat: the model in use, read-only (models are chosen in Settings) */
 .askrow .modelchip{display:inline-flex;align-items:center;height:44px;padding:0 12px;border:1px solid var(--input-b);border-radius:10px;background:var(--input-bg);color:var(--muted);font-size:13px;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;text-decoration:none}
 .askrow .modelchip:hover{color:var(--ink);border-color:var(--accent-line)}
+
+/* Chat: minimal answers. One row of small icons; the details live in the side panel. */
+.mini-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px}
+.mini{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border:1px solid var(--line);border-radius:999px;background:none;font-size:12px;font-weight:500;color:var(--ink);white-space:nowrap}
+.mini svg{width:12px;height:12px}
+.mini.dim{color:var(--muted)}
+.mini .dotc{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.mini.conf-high .dotc{background:var(--good)}
+.mini.conf-med .dotc,.mini.conf-low .dotc{background:var(--amber-mark)}
+.mini.conf-high{color:var(--good)}
+.mini.conf-med,.mini.conf-low{color:var(--amber)}
+button.mini{cursor:pointer}
+.mini.more{font-weight:600;margin-left:auto}
+.mini.more:hover,.mini.more.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.acard.chat{border-style:dashed}
+.acard.chat .ans-text,.acard .ans-text:last-child{margin-bottom:0}
+.acard.refusal .ans-text{color:var(--muted)}
+.col-head-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+/* Collapsed side panel */
+.psum{display:flex;flex-direction:column;gap:14px}
+.stepdots{display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:12.5px;color:var(--muted)}
+.stepdots i{width:10px;height:10px;border-radius:50%;background:var(--dim)}
+.stepdots i.done{background:var(--good)}
+.stepdots i.failed{background:var(--bad, #e5484d)}
+.stepdots i.blocked{background:var(--amber-mark)}
+.stepdots i.active{background:var(--accent);animation:pulse 1s ease-in-out infinite alternate}
+.stepdots span{margin-left:6px}
+@keyframes pulse{from{opacity:.4}to{opacity:1}}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tile{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.tile b{font:600 15px var(--mono)}
+.tile small{font-size:11.5px;color:var(--muted)}
+.tile.conf-high b{color:var(--good)}
+.tile.conf-med b,.tile.conf-low b{color:var(--amber)}
+.tile.dim b,.tile.conf-none b{color:var(--muted)}
+/* Expanded side panel */
+.details{display:flex;flex-direction:column;gap:16px;margin-bottom:18px}
+.details h4,.details-h{margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.details .evid:first-of-type{margin-top:0}

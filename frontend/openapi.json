@@ -824,6 +824,7 @@
               "answered",
               "refused",
               "error",
+              "chat",
               "indexed",
               "duplicate",
               "rejected",
@@ -892,7 +893,8 @@
             "enum": [
               "text",
               "calculation",
-              "refusal"
+              "refusal",
+              "chat"
             ],
             "title": "Kind"
           },

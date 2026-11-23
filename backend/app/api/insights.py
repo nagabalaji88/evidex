@@ -21,7 +21,12 @@ ANSWERED = ("answered", "partial")
 REFUSED = ("not_in_documents", "refused_grounding")
 
 
+SMALLTALK = "smalltalk"  # "hi", "thanks": shown in Activity as chat, left out of the statistics
+
+
 def _result(outcome: str) -> str:
+    if outcome == SMALLTALK:
+        return "chat"
     return "answered" if outcome in ANSWERED else "refused" if outcome in REFUSED else "error"
 
 
@@ -38,7 +43,8 @@ async def stats(request: Request, days: int = 7) -> Stats:
     chunks = db.one("SELECT COUNT(*) AS n FROM chunks c JOIN versions v ON v.id = c.version_id "
                     "WHERE c.status = 'active' AND v.path = 'text'")["n"]
     rows = db.one("SELECT COALESCE(SUM(table_rows), 0) AS n FROM versions WHERE status = 'active'")["n"]
-    q = db.query("SELECT * FROM question_log WHERE substr(created_at, 1, 10) >= ? ORDER BY id", (since_iso,))
+    q = db.query("SELECT * FROM question_log WHERE substr(created_at, 1, 10) >= ? AND outcome != ? ORDER BY id",
+                 (since_iso, SMALLTALK))
     results = [_result(r["outcome"]) for r in q]
     times = sorted(r["total_ms"] for r in q if r["total_ms"] and _result(r["outcome"]) != "error")
     confs = [r["confidence"] for r in q if r["confidence"] is not None and r["confidence_level"] in

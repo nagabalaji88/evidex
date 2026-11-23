@@ -193,7 +193,7 @@ class SqlResult(BaseModel):
 class AnswerPayload(BaseModel):
     """`answer` event: the final answer after grounding."""
 
-    kind: Literal["text", "calculation", "refusal"]
+    kind: Literal["text", "calculation", "refusal", "chat"]  # chat: a reply to small talk ("hi")
     found_in_document: bool
     answer: str
     sentences: list[AnswerSentence] = []
@@ -396,7 +396,7 @@ class ActivityRow(BaseModel):
     id: int
     when: str
     detail: str
-    result: Literal["answered", "refused", "error", "indexed", "duplicate", "rejected", "failed"]
+    result: Literal["answered", "refused", "error", "chat", "indexed", "duplicate", "rejected", "failed"]
     confidence: str
     source: str
     ms: int | None = None
