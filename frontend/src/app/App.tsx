@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import Activity from "../pages/Activity";
 import Chat from "../pages/Chat";
@@ -27,30 +27,59 @@ function currentPage(): PageId {
   return (PAGES.find((p) => p.id === id)?.id ?? "dashboard") as PageId;
 }
 
-function Rail({ page, open, toggle }: { page: PageId; open: boolean; toggle: () => void }) {
+const X_ICON = (
+  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={1.8}
+    strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+);
+
+/** One menu button; on click it grows downward into a column of every page. */
+function NavMenu({ page }: { page: PageId }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        btn.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  useEffect(() => setOpen(false), [page]);
   return (
-    <nav className={`rail${open ? " open" : ""}`} aria-label="Main">
-      <div className="rail-top">
-        <button type="button" className="rail-btn" aria-expanded={open} aria-label={open ? "Collapse menu" : "Expand menu"}
-          title={open ? "Collapse menu" : "Expand menu"} onClick={toggle}>
-          {IC.menu}
+    <nav className="navm" aria-label="Main" ref={box}>
+      <div className={`navm-pop${open ? " open" : ""}`}>
+        <button type="button" className="navm-btn" ref={btn} aria-expanded={open} aria-controls="navm-list"
+          aria-label={open ? "Close menu" : "Open menu"} title={open ? "Close menu" : "Menu"} onClick={() => setOpen(!open)}>
+          {open ? X_ICON : IC.menu}
         </button>
-        {open ? <span className="brand">Evidex</span> : null}
-      </div>
-      {PAGES.map((p) => {
-        const cur = page === p.id;
-        return (
-          <a key={p.id} className={`ri${cur ? " cur" : ""}`} href={`#${p.id}`} aria-current={cur ? "page" : undefined}
-            title={open ? undefined : p.title} aria-label={open ? undefined : p.title}>
-            {IC[p.id]}
-            {open ? <span className="ri-l">{p.title}</span> : null}
-          </a>
-        );
-      })}
-      <span className="rail-sp" />
-      <div className="who">
-        <span className="av">A</span>
-        {open ? <span><b>Admin</b><small>Local · this machine</small></span> : null}
+        {open ? (
+          <div className="navm-list" id="navm-list">
+            {PAGES.map((p, i) => {
+              const cur = page === p.id;
+              return (
+                <a key={p.id} className={`navm-i${cur ? " cur" : ""}`} href={`#${p.id}`} aria-current={cur ? "page" : undefined}
+                  aria-label={p.title} style={{ animationDelay: `${60 + i * 35}ms` }} onClick={() => setOpen(false)}>
+                  {IC[p.id]}<span className="navm-lb" aria-hidden="true">{p.title}</span>
+                </a>
+              );
+            })}
+            <div className="navm-who" style={{ animationDelay: `${60 + PAGES.length * 35}ms` }} title="Admin · Local · this machine">
+              <span className="av">A</span>
+              <span className="navm-lb" aria-hidden="true">Admin · Local</span>
+            </div>
+          </div>
+        ) : null}
       </div>
     </nav>
   );
@@ -78,7 +107,6 @@ function ModelChip() {
 
 function Shell() {
   const [page, setPage] = useState<PageId>(currentPage());
-  const [rail, setRail] = useState(load("evidex-rail", "closed") === "open");
   const [theme, setTheme] = useState(load("evidex-theme", ""));
   const { config } = useApp();
 
@@ -110,18 +138,12 @@ function Shell() {
     setTheme(t);
     save("evidex-theme", t);
   };
-  const toggleRail = () => {
-    setRail((o) => {
-      save("evidex-rail", o ? "closed" : "open");
-      return !o;
-    });
-  };
 
   return (
     <div className="frame">
-      <Rail page={page} open={rail} toggle={toggleRail} />
       <div className="main">
         <header className="hdr">
+          <NavMenu page={page} />
           <div><div className="hk">Evidex · local agent</div><h1>{p.title}</h1></div>
           <span className="sp" />
           <span className="hsub">{p.sub}</span>
