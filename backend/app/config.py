@@ -9,13 +9,14 @@ from __future__ import annotations
 import fnmatch
 import os
 from functools import lru_cache
+from urllib.parse import urlparse
 from pathlib import Path
 from typing import Annotated
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .env import EnvError, Endpoint, apply_overrides, endpoints, gemini_api_key, load_env_file
+from .env import EnvError, Endpoint, apply_overrides, endpoints, gemini_api_key, is_local_url, load_env_file
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "config.yaml"
@@ -39,9 +40,26 @@ class ProviderConfig(_Section):
     use_local_models: bool  # the Settings toggle: False = Google Gemini API, True = local models
 
 
+def clean_api_url(url: str) -> str:
+    """https always; plain http only for a server on this computer or network (LM Studio etc.)."""
+    v = url.strip().rstrip("/")
+    if not (v.startswith("https://") or v.startswith("http://") and is_local_url(v)):
+        raise ValueError("the URL must start with https:// (http:// only for a local server)")
+    return v
+
+
+def is_google_url(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return host == "googleapis.com" or host.endswith(".googleapis.com")
+
+
 class GeminiConfig(_Section):
-    base_url: str = Field(min_length=1)    # OpenAI-compatible endpoint (chat, embeddings)
-    models_url: str = Field(min_length=1)  # native model list
+    """The API connection set in Settings > AI models: an API key (in .env) and the URL that
+    lists the models. Google's Gemini API by default; any OpenAI-compatible service also works
+    (its models URL ends in /models, and chat and embeddings use the same base)."""
+
+    base_url: str = Field(min_length=1)    # Google only: its OpenAI-compatible endpoint (chat, embeddings)
+    models_url: str = Field(min_length=1)  # lists the models the key can use
     answer_model: str = Field(min_length=1)
     embedding_model: str = Field(min_length=1)
     rewrite_model: str
@@ -58,9 +76,19 @@ class GeminiConfig(_Section):
     @field_validator("base_url", "models_url")
     @classmethod
     def _https(cls, v: str) -> str:
-        if not v.startswith("https://"):
-            raise ValueError("Gemini URLs must start with https://")
-        return v.rstrip("/")
+        return clean_api_url(v)
+
+    @property
+    def is_google(self) -> bool:
+        return is_google_url(self.models_url)
+
+    @property
+    def chat_base_url(self) -> str:
+        """Where chat and embeddings go: Google's OpenAI-compatible endpoint, or for any other
+        service the models URL without its final /models (…/v1/models -> …/v1)."""
+        if self.is_google:
+            return self.base_url
+        return self.models_url[: -len("/models")] if self.models_url.endswith("/models") else self.models_url
 
     def is_free_tier(self, model: str) -> bool:
         name = model.removeprefix("models/")
@@ -68,7 +96,8 @@ class GeminiConfig(_Section):
 
     @model_validator(mode="after")
     def _free_models_only(self) -> "GeminiConfig":
-        if self.free_tier_only:
+        # Google's free tier is known (gemini.free_tier_models); other services' pricing is not.
+        if self.free_tier_only and self.is_google:
             for key in ("answer_model", "embedding_model", *(f"{task}_model" for task in TASKS)):
                 if getattr(self, key) and not self.is_free_tier(getattr(self, key)):
                     raise ValueError(f"gemini.{key} '{getattr(self, key)}' has no free tier. Pick a model from "
@@ -294,7 +323,8 @@ def gemini_update(cfg: Config, env: dict[str, str]) -> dict:
     Choosing Gemini in Settings (or in config.yaml) is the opt-in to send text to Google,
     so EVIDEX_ALLOW_REMOTE is not needed for it."""
     g = cfg.gemini
-    endpoint = Endpoint(provider="gemini", base_url=g.base_url, api_key=gemini_api_key(env))
+    endpoint = Endpoint(provider="gemini" if g.is_google else "openai", base_url=g.chat_base_url,
+                        api_key=gemini_api_key(env))
     models = cfg.models.model_copy(update={"answer": g.answer_model, "embedding": g.embedding_model,
                                            # nomic-style task prefixes mean nothing to Gemini embeddings
                                            "embedding_query_prefix": "", "embedding_doc_prefix": ""})

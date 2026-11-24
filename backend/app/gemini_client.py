@@ -93,39 +93,62 @@ def rate_limit_message(resp: httpx.Response) -> str:
             " Limits are per Google Cloud project: see aistudio.google.com/rate-limit.")
 
 
-async def list_gemini_models(config: Config, api_key: str,
-                             transport: httpx.AsyncBaseTransport | None = None) -> list[dict[str, Any]]:
-    """Every model this key can use, as {name, display_name, kind, free_tier, ...}."""
+async def list_gemini_models(config: Config, api_key: str, transport: httpx.AsyncBaseTransport | None = None,
+                             models_url: str | None = None) -> list[dict[str, Any]]:
+    """Every model the key can use at models_url (default: gemini.models_url), as
+    {name, display_name, kind, free_tier, ...}. Reads Google's list ({"models": [...]},
+    supportedGenerationMethods, paged) and the OpenAI one ({"data": [{"id": ...}]}).
+    free_tier is known for Google only (gemini.free_tier_models); otherwise None."""
+    from .config import is_google_url
+
     if not api_key:
-        raise OllamaError("No Gemini API key yet. Add it in Settings.")
+        raise OllamaError("No API key yet. Add it in Settings, AI models.")
     g = config.gemini
+    url = (models_url or g.models_url).strip().rstrip("/")
+    google = is_google_url(url)
+    headers = {"x-goog-api-key": api_key} if google else {"Authorization": f"Bearer {api_key}"}
     out: list[dict[str, Any]] = []
     token = ""
     async with httpx.AsyncClient(timeout=httpx.Timeout(config.ollama.timeout_seconds), transport=transport,
-                                 headers={"x-goog-api-key": api_key}) as client:
-        for _ in range(20):  # 1000 per page; 20 pages is far more than Google lists
-            params = {"pageSize": 1000} | ({"pageToken": token} if token else {})
+                                 headers=headers) as client:
+        for _ in range(20):  # 1000 per page; 20 pages is far more than any service lists
+            params = ({"pageSize": 1000} | ({"pageToken": token} if token else {})) if google else {}
             try:
-                resp = await client.get(g.models_url, params=params)
+                resp = await client.get(url, params=params)
             except httpx.HTTPError as exc:
-                raise OllamaError(f"Cannot reach the Gemini API: {exc}") from exc
+                raise OllamaError(f"Cannot reach {url}: {exc}") from exc
             if resp.status_code in (400, 401, 403):
-                raise OllamaError("The Gemini API refused this API key. Check it at aistudio.google.com/api-keys.")
+                raise OllamaError("The API refused this API key"
+                                  + (". Check it at aistudio.google.com/api-keys." if google else " for this URL."))
+            if resp.status_code == 404:
+                raise OllamaError(f"Nothing found at {url}. Check the models URL.")
             if resp.status_code == 429:
                 raise OllamaError(rate_limit_message(resp))
             if resp.status_code != 200:
-                raise OllamaError(f"The Gemini API returned HTTP {resp.status_code} for the model list.")
-            data = resp.json() or {}
-            for m in data.get("models") or []:
-                methods = m.get("supportedGenerationMethods") or []
-                kind = "answer" if "generateContent" in methods else "embedding" if "embedContent" in methods else None
-                name = str(m.get("name", "")).removeprefix("models/")
+                raise OllamaError(f"{url} returned HTTP {resp.status_code} for the model list.")
+            try:
+                data = resp.json()
+            except ValueError as exc:
+                raise OllamaError(f"{url} did not return a model list. Check the models URL.") from exc
+            items = data.get("models", data.get("data")) if isinstance(data, dict) else data
+            if not isinstance(items, list):
+                raise OllamaError(f"{url} did not return a model list. Check the models URL.")
+            for m in items:
+                if not isinstance(m, dict):
+                    continue
+                if google:
+                    methods = m.get("supportedGenerationMethods") or []
+                    kind = "answer" if "generateContent" in methods else "embedding" if "embedContent" in methods else None
+                    name = str(m.get("name", "")).removeprefix("models/")
+                else:
+                    name = str(m.get("id") or m.get("name") or "")
+                    kind = "embedding" if "embed" in name.lower() else "answer"
                 if kind and name:
                     out.append({"name": name, "model": name, "display_name": m.get("displayName") or name,
-                                "kind": kind, "free_tier": g.is_free_tier(name),
+                                "kind": kind, "free_tier": g.is_free_tier(name) if google else None,
                                 "input_token_limit": m.get("inputTokenLimit"),
                                 "output_token_limit": m.get("outputTokenLimit")})
-            token = data.get("nextPageToken") or ""
+            token = (data.get("nextPageToken") or "") if google and isinstance(data, dict) else ""
             if not token:
                 break
     return out

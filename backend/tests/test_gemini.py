@@ -143,6 +143,15 @@ def test_paid_only_model_is_refused_while_free_tier_only(tmp_path):
 def test_gemini_urls_must_be_https(tmp_path):
     with pytest.raises(ConfigError, match="https"):
         gemini_cfg(tmp_path, base_url="http://generativelanguage.googleapis.com/v1beta/openai")
+    cfg, _ = gemini_cfg(tmp_path, models_url="http://localhost:1234/v1/models")  # a local server may use http
+    assert cfg.llm.provider == "openai" and cfg.llm.base_url == "http://localhost:1234/v1"
+
+
+def test_any_openai_style_models_url_is_used_for_chat_too(tmp_path):
+    cfg, _ = gemini_cfg(tmp_path, models_url="https://api.example.com/v1/models", answer_model="gpt-test",
+                        embedding_model="text-embed-test")  # free tier is known for Google only
+    assert cfg.llm.provider == "openai" and cfg.llm.base_url == "https://api.example.com/v1"
+    assert cfg.llm.api_key.get_secret_value() == KEY and cfg.models.answer == "gpt-test"
 
 
 # -- client -----------------------------------------------------------------------------------
@@ -161,7 +170,7 @@ def test_model_list_is_paged_split_and_marked_free(tmp_path):
     assert "gemini-3.8-live" not in by  # no generateContent / embedContent
     with pytest.raises(OllamaError, match="refused this API key"):
         run(list_gemini_models(cfg, OTHER, fake.transport))
-    with pytest.raises(OllamaError, match="No Gemini API key"):
+    with pytest.raises(OllamaError, match="No API key yet"):
         run(list_gemini_models(cfg, "", fake.transport))
 
 
@@ -228,26 +237,77 @@ def make_app(tmp_path, fake, env_key=True, monkeypatch=None):
     return TestClient(app), cfg_path
 
 
-def test_key_is_checked_saved_in_env_file_and_never_returned(tmp_path, monkeypatch):
+CONNECT = {"models_url": "https://generativelanguage.googleapis.com/v1beta/models",
+           "answer_model": "gemini-2.5-flash", "embedding_model": "gemini-embedding-001", "sql_model": "gemma-4-27b-it"}
+
+
+def test_connect_key_and_url_then_pick_models_and_save(tmp_path, monkeypatch):
+    """Settings > AI models: key + models URL -> OK lists the models -> pick per task -> OK saves."""
     fake = FakeGemini()
-    c, _ = make_app(tmp_path, fake, env_key=False)
+    c, cfg_path = make_app(tmp_path, fake, env_key=False)
     with c:
         s = c.get("/api/settings").json()
         assert s["gemini"] == {"in_use": True, "api_key_set": False, "api_key_source": None}
-        assert "No Gemini API key" in c.get("/api/health").json()["ollama"]["detail"]
-        r = c.put("/api/gemini/key", json={"api_key": OTHER})  # Google refuses it
-        assert r.status_code == 422 and "refused this API key" in r.json()["detail"]
-        assert c.put("/api/gemini/key", json={"api_key": "not a key"}).status_code == 422
-        r = c.put("/api/gemini/key", json={"api_key": KEY})
-        assert r.status_code == 200 and r.json()["ok"]
+        assert "No API key yet" in c.get("/api/health").json()["ollama"]["detail"]
+        # First OK: list with the typed key and URL (nothing saved yet).
+        r = c.post("/api/gemini/models", json={"api_key": KEY, "models_url": CONNECT["models_url"]}).json()
+        assert r["error"] is None and "gemini-2.5-flash" in [m["name"] for m in r["models"]]
+        assert not env_file_path().exists()
+        assert "refused" in c.post("/api/gemini/models", json={"api_key": OTHER}).json()["error"]
+        assert "https" in c.post("/api/gemini/models", json={"api_key": KEY, "models_url": "ftp://x"}).json()["error"]
+        # Second OK: refused unless every pick is offered to the key, of the right kind, and free.
+        bad = c.put("/api/connection", json={**CONNECT, "api_key": KEY, "embedding_model": "gemini-2.5-flash"})
+        assert bad.status_code == 422 and "embedding model" in bad.json()["detail"]
+        bad = c.put("/api/connection", json={**CONNECT, "api_key": KEY, "answer_model": "gemini-4-carbon"})
+        assert bad.status_code == 422 and "no free tier" in bad.json()["detail"]
+        assert c.put("/api/connection", json={**CONNECT, "api_key": OTHER}).status_code == 422
+        assert c.put("/api/connection", json={**CONNECT, "api_key": "not a key"}).status_code == 422
+        r = c.put("/api/connection", json={**CONNECT, "api_key": KEY})
+        assert r.status_code == 200, r.text
+        out = r.json()
+        assert out["saved"] and "API key saved" in out["message"]
+        assert set(out["changed"]) == {"gemini.answer_model", "gemini.sql_model"}
         assert f'EVIDEX_GEMINI_API_KEY="{KEY}"' in env_file_path().read_text(encoding="utf-8")
+        cfg = c.app.state.config
+        assert cfg.models.answer == "gemini-2.5-flash" and cfg.model_for("sql") == "gemma-4-27b-it"
+        assert cfg.model_for("rewrite") == "gemini-2.5-flash"
         s = c.get("/api/settings").json()
         assert s["gemini"]["api_key_set"] and s["gemini"]["api_key_source"] == ".env" and s["llm"]["api_key_set"]
         assert KEY not in json.dumps(s) and KEY not in json.dumps(c.get("/api/health").json())
         assert c.get("/api/health").json()["answer_model"]["ok"]  # applied without a restart
+        # Saving again without a key keeps the saved one.
+        assert c.put("/api/connection", json={**CONNECT, "sql_model": ""}).status_code == 200
+        assert c.app.state.config.model_for("sql") == "gemini-2.5-flash"
         assert c.delete("/api/gemini/key").json()["message"] == "API key removed from .env."
         assert not c.get("/api/settings").json()["gemini"]["api_key_set"]
         assert "EVIDEX_GEMINI_API_KEY" not in env_file_path().read_text(encoding="utf-8")
+    text = cfg_path.read_text(encoding="utf-8")
+    assert "answer_model: gemini-2.5-flash" in text and KEY not in text
+
+
+def test_connect_to_an_openai_style_service(tmp_path, monkeypatch):
+    """Any service whose models URL returns the OpenAI list works the same way."""
+    other = FakeOpenAI(key=OTHER, models=("gpt-test", "text-embed-test"),
+                       reply=lambda body: json.dumps({"ok": True}))
+    google = FakeGemini()
+
+    def route(request):
+        return other.handler(request) if request.url.host == "api.example.com" else google.handler(request)
+
+    c, _ = make_app(tmp_path, type("T", (), {"transport": httpx.MockTransport(route)})(), env_key=False)
+    with c:
+        url = "https://api.example.com/v1/models"
+        r = c.post("/api/gemini/models", json={"api_key": OTHER, "models_url": url}).json()
+        assert r["error"] is None and not r["free_tier_only"]
+        assert {(m["name"], m["kind"], m["free_tier"]) for m in r["models"]} == {
+            ("gpt-test", "answer", None), ("text-embed-test", "embedding", None)}
+        r = c.put("/api/connection", json={"api_key": OTHER, "models_url": url, "answer_model": "gpt-test",
+                                           "embedding_model": "text-embed-test"})
+        assert r.status_code == 200, r.text
+        assert r.json()["reindex_required"]
+        h = c.get("/api/health").json()
+        assert h["provider"] == "OpenAI-compatible · api.example.com" and h["answer_model"]["ok"], h
+    assert all(h["authorization"] == f"Bearer {OTHER}" for _, _, h in other.requests)
 
 
 def test_model_endpoint_lists_every_model_for_the_key_marked_free_or_paid(tmp_path, monkeypatch):

@@ -7,7 +7,11 @@ import {
   GROUPS, LOCAL_ONLY, LOCAL_TOGGLE, PROVIDER_FIELDS, REINDEX, RISKY, TASK_FIELDS, getPath, validate, yamlSet, type Field, type Values,
 } from "./settingsModel";
 
-const FIELDS = [...PROVIDER_FIELDS, ...TASK_FIELDS, ...GROUPS.flatMap((g) => g.fields)];
+// The general Save covers the toggle and the groups below. The API connection (key, models
+// URL, a model per task) has its own two OK buttons in the AI models card.
+const FIELDS = [PROVIDER_FIELDS[0], ...GROUPS.flatMap((g) => g.fields)];
+const PICK_FIELDS = [PROVIDER_FIELDS[1], PROVIDER_FIELDS[2], ...TASK_FIELDS];
+type Picks = Record<string, string>;
 type Opt = [string | number, string, boolean];
 
 function initial(cfg: Record<string, unknown>): Values {
@@ -22,6 +26,9 @@ export default function Settings() {
   const [models, setModels] = useState<ModelList | null>(null);
   const [gemini, setGemini] = useState<GeminiModelList | null>(null);
   const [key, setKey] = useState("");
+  const [url, setUrl] = useState("");
+  const [picks, setPicks] = useState<Picks>({});
+  const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsReindex, setNeedsReindex] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -31,17 +38,28 @@ export default function Settings() {
     setServer(s);
     setSaved(initial(s.config));
     setVals(initial(s.config));
+    setUrl(String(getPath(s.config, "gemini.models_url") ?? ""));
+    setPicks(Object.fromEntries(PICK_FIELDS.map((f) => [f.key, String(getPath(s.config, f.key) ?? "")])));
     return s;
   }, []);
 
-  const loadGemini = useCallback(() => {
-    sendJSON<GeminiModelList>("/api/gemini/models", "POST", {}).then(setGemini)
-      .catch((e) => setGemini({ models: [], free_tier_only: true, paid_only: 0, error: (e as Error).message }));
+  /** First OK: list every model the key can use at the models URL (empty key: the saved one). */
+  const listModels = useCallback(async (apiKey: string, modelsUrl: string) => {
+    setConnected(false);
+    try {
+      const r = await sendJSON<GeminiModelList>("/api/gemini/models", "POST", { api_key: apiKey || null, models_url: modelsUrl || null });
+      setGemini(r);
+    } catch (e) {
+      setGemini({ models: [], free_tier_only: true, paid_only: 0, error: (e as Error).message });
+    }
   }, []);
 
   useEffect(() => {
-    loadServer().then((s) => { if (s.gemini?.api_key_set) loadGemini(); }).catch((e) => setError((e as Error).message));
-  }, [loadServer, loadGemini]);
+    loadServer().then((s) => {
+      // Already connected: show the saved models straight away.
+      if (s.gemini?.api_key_set) void listModels("", String(getPath(s.config, "gemini.models_url") ?? ""));
+    }).catch((e) => setError((e as Error).message));
+  }, [loadServer, listModels]);
 
   const local = vals[LOCAL_TOGGLE] === true;
   // The toggle lists local models only when it is on (fetched the first time it is).
@@ -62,17 +80,6 @@ export default function Settings() {
   const options = (f: Field): Opt[] => {
     if (f.kind !== "select") return [];
     const cur = String(saved[f.key] ?? "");
-    if (f.key.startsWith("gemini.")) {
-      // Every model the key can use; paid-only ones are shown but cannot be picked while
-      // gemini.free_tier_only is on (the server refuses them too).
-      const kind = f.key === "gemini.embedding_model" ? "embedding" : "answer";
-      const list = (gemini?.models ?? []).filter((m) => m.kind === kind)
-        .map((m) => [m.name, `${m.display_name} (${m.name}) · ${m.free_tier ? "free tier" : "paid only"}`,
-          !m.free_tier && !!gemini?.free_tier_only] as Opt);
-      const isTask = TASK_FIELDS.some((x) => x.key === f.key);
-      const withCur = withCurrent(list, cur, gemini?.models.length ? " (not offered to this key)" : "");
-      return isTask ? [["", "Same as the answer model", false], ...withCur] : withCur;
-    }
     if (f.key === "models.answer") {
       const list = (models?.models ?? []).filter((m) => !m.is_embedding)
         .map((m) => [m.name, `${modelLabel(m.name)}${m.tested ? " (tested)" : m.fits_in_ram ? " (not evaluated)" : " (too large)"}`, !m.fits_in_ram] as Opt);
@@ -105,14 +112,18 @@ export default function Settings() {
     }
   }
 
-  async function saveKey() {
+  /** Second OK: save the key, the URL and a model for each task together. */
+  async function saveConnection() {
     setBusy(true);
     setError(null);
     try {
-      const r = await sendJSON<ActionResult>("/api/gemini/key", "PUT", { api_key: key.trim() });
+      const body = { api_key: key.trim() || null, models_url: url.trim(),
+        ...Object.fromEntries(PICK_FIELDS.map((f) => [f.key.replace("gemini.", ""), picks[f.key] ?? ""])) };
+      const r = await sendJSON<SettingsSaved>("/api/connection", "PUT", body);
       setKey("");
       await loadServer();
-      loadGemini();
+      setNeedsReindex(r.reindex_required);
+      setConnected(true);
       reloadConfig();
       refreshHealth();
       toast(r.message);
@@ -130,6 +141,7 @@ export default function Settings() {
       const r = await sendJSON<ActionResult>("/api/gemini/key", "DELETE");
       await loadServer();
       setGemini(null);
+      setConnected(false);
       refreshHealth();
       toast(r.message);
     } catch (e) {
@@ -193,11 +205,33 @@ export default function Settings() {
 
   if (!server) return <section className="card">{error ? <p className="callout bad">{error}</p> : <div className="empty-card"><b>Loading…</b></div>}</section>;
 
-  const [toggle, answerField, embedField] = PROVIDER_FIELDS;
-  const geminiNote = gemini?.error ? <small className="note" role="alert">{gemini.error}</small>
-    : !keySet ? <small className="note">Save an API key to list the models.</small>
-    : gemini ? <small className="note">{gemini.models.filter((m) => m.kind === "answer").length} models available to this key
-      {gemini.paid_only && gemini.free_tier_only ? `; ${gemini.paid_only} paid-only, shown greyed out` : ""}.</small> : null;
+  const toggle = PROVIDER_FIELDS[0];
+  const found = gemini && !gemini.error ? gemini.models : null;
+  const pickOptions = (f: Field): Opt[] => {
+    // Every model the key can use. Google's paid-only models are shown but cannot be picked
+    // while gemini.free_tier_only is on (the server refuses them too).
+    const kind = f.key === "gemini.embedding_model" ? "embedding" : "answer";
+    const list = (found ?? []).filter((m) => m.kind === kind).map((m) => [m.name,
+      `${m.display_name !== m.name ? `${m.display_name} (${m.name})` : m.name}${m.free_tier === true ? " · free tier" : m.free_tier === false ? " · paid only" : ""}`,
+      m.free_tier === false && !!gemini?.free_tier_only] as Opt);
+    const isTask = TASK_FIELDS.some((x) => x.key === f.key);
+    const cur = picks[f.key] ?? "";
+    const withCur = withCurrent(list, cur, " (not offered to this key)");
+    return isTask ? [["", "Same as the answer model", false], ...withCur] : [["", "Choose a model…", true], ...withCur];
+  };
+  const picksDone = !!picks["gemini.answer_model"] && !!picks["gemini.embedding_model"];
+  const isGoogle = /(^|\.)googleapis\.com$/i.test((() => { try { return new URL(url).hostname; } catch { return ""; } })());
+  const pickRow = (f: Field) => {
+    const id = `cfg_${f.key.replace(".", "_")}`;
+    return (
+      <div key={f.key} className="srow">
+        <div><label htmlFor={id}><b>{f.label}</b></label><small>{f.help}</small></div>
+        <select id={id} value={picks[f.key] ?? ""} onChange={(e) => { setConnected(false); setPicks((x) => ({ ...x, [f.key]: e.target.value })); }}>
+          {pickOptions(f).map(([ov, ol, dis]) => <option key={String(ov)} value={String(ov)} disabled={dis}>{ol}</option>)}
+        </select>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -213,35 +247,60 @@ export default function Settings() {
                   {models?.error ? `. ${models.error}` : ""}.</p>
               ) : (
                 <>
+                  <h3 className="lbl step-h"><span className="stepn">1</span>Connect</h3>
                   <div className="srow">
                     <div>
-                      <label htmlFor="gemini_key"><b>Gemini API key</b></label>
+                      <label htmlFor="api_key"><b>API key</b></label>
                       <small>{keySet
-                        ? `Saved${server.gemini?.api_key_source === ".env" ? " in .env on this computer" : ` in ${server.gemini?.api_key_source}`}. It is never shown again.`
-                        : "Create one at aistudio.google.com/api-keys. It is checked with Google, then saved in .env on this computer."}</small>
+                        ? `Saved${server.gemini?.api_key_source === ".env" ? " in .env on this computer" : ` in ${server.gemini?.api_key_source}`}. Leave empty to keep it.`
+                        : "For Google Gemini, create one at aistudio.google.com/api-keys. Saved in .env on this computer."}</small>
                     </div>
-                    <div className="keyrow">
-                      <input type="password" id="gemini_key" autoComplete="off" spellCheck={false} value={key}
-                        placeholder={keySet ? "Saved. Paste a new key to replace it" : "Paste your API key"}
-                        onChange={(e) => { setError(null); setKey(e.target.value); }} />
-                      <div className="btns">
-                        <button type="button" className="btn primary" disabled={busy || !key.trim()} onClick={() => void saveKey()}>
-                          {busy && key ? "Checking…" : "Save key"}</button>
-                        {keySet ? <button type="button" className="btn" disabled={busy} onClick={() => void loadGemini()}>Reload models</button> : null}
-                        {keySet && server.gemini?.api_key_source === ".env"
-                          ? <button type="button" className="btn" disabled={busy} onClick={() => void removeKey()}>Remove</button> : null}
-                      </div>
-                    </div>
+                    <input type="password" id="api_key" autoComplete="off" spellCheck={false} value={key}
+                      placeholder={keySet ? "Saved · paste to replace" : "Paste your API key"}
+                      onChange={(e) => { setError(null); setConnected(false); setKey(e.target.value); }} />
                   </div>
-                  {row(answerField, geminiNote)}
-                  {row(embedField)}
-                  <h3 className="lbl" style={{ margin: "16px 0 0" }}>Models for specific tasks</h3>
-                  {TASK_FIELDS.map((f) => row(f))}
-                  <p className="callout info" style={{ margin: "10px 0 0" }}>
-                    Paid-only models are listed but cannot be picked. The free tier applies when the key&apos;s Google Cloud project
-                    has no billing account; with billing on, Google charges for every request. On the free tier,
-                    Google may use the text sent (your questions and document passages) to improve its products.
-                  </p>
+                  <div className="srow">
+                    <div>
+                      <label htmlFor="models_url"><b>Models URL</b></label>
+                      <small>The address that lists the models for this key. Google Gemini:
+                        generativelanguage.googleapis.com/v1beta/models. Other services: their …/v1/models.</small>
+                    </div>
+                    <input type="text" id="models_url" autoComplete="off" spellCheck={false} value={url}
+                      onChange={(e) => { setError(null); setConnected(false); setUrl(e.target.value); }} />
+                  </div>
+                  <div className="okrow">
+                    {gemini?.error ? <span className="note bad-t" role="alert">{gemini.error}</span>
+                      : found ? <span className="note">{found.filter((m) => m.kind === "answer").length} answer and{" "}
+                        {found.filter((m) => m.kind === "embedding").length} embedding models found
+                        {gemini?.paid_only && gemini.free_tier_only ? ` · ${gemini.paid_only} paid-only, greyed out` : ""}.</span>
+                        : <span className="note">Enter the key and URL, then click OK to list the models.</span>}
+                    <button type="button" className="btn primary" disabled={busy || !url.trim() || (!key.trim() && !keySet)}
+                      onClick={() => void listModels(key.trim(), url.trim())}>OK</button>
+                  </div>
+                  {found ? (
+                    <>
+                      <h3 className="lbl step-h"><span className="stepn">2</span>Choose a model for each task</h3>
+                      {PICK_FIELDS.map(pickRow)}
+                      <div className="okrow">
+                        {connected ? <span className="note good-t">Saved. Next: <a href="#upload">upload your documents</a>, then ask your questions.</span>
+                          : <span className="note">OK checks the models with the API and saves the key, URL and models.</span>}
+                        <button type="button" className="btn primary" disabled={busy || !picksDone} onClick={() => void saveConnection()}>
+                          {busy ? "Saving…" : "OK"}</button>
+                      </div>
+                    </>
+                  ) : null}
+                  {keySet && server.gemini?.api_key_source === ".env" ? (
+                    <p className="note" style={{ marginTop: 6 }}>
+                      <button type="button" className="linkbtn" disabled={busy} onClick={() => void removeKey()}>Remove the saved API key</button>
+                    </p>
+                  ) : null}
+                  {isGoogle ? (
+                    <p className="callout info" style={{ margin: "10px 0 0" }}>
+                      Google&apos;s paid-only models are listed but cannot be picked. The free tier applies when the key&apos;s Google Cloud
+                      project has no billing account; with billing on, Google charges for every request. On the free tier, Google may
+                      use the text sent (your questions and document passages) to improve its products.
+                    </p>
+                  ) : null}
                 </>
               )}
             </div>

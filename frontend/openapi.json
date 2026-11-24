@@ -668,7 +668,7 @@
     "/api/gemini/models": {
       "post": {
         "summary": "Gemini Models",
-        "description": "Every answer and embedding model this API key can use, each marked free tier or not.\nWith gemini.free_tier_only (the default) the page greys out the paid-only ones, and\nsaving one is refused.",
+        "description": "The first OK: every answer and embedding model the API key can use at the models URL\n(empty fields: the saved key and URL). For Google's API each is marked free tier or\nnot; with gemini.free_tier_only (the default) paid-only ones are greyed out and refused.",
         "operationId": "gemini_models_api_gemini_models_post",
         "requestBody": {
           "content": {
@@ -704,16 +704,16 @@
         }
       }
     },
-    "/api/gemini/key": {
+    "/api/connection": {
       "put": {
-        "summary": "Save Gemini Key",
-        "description": "Check the key against the Gemini API, then save it in .env (git-ignored). The key is\nnever written to config.yaml and never returned by the API.",
-        "operationId": "save_gemini_key_api_gemini_key_put",
+        "summary": "Save Connection",
+        "description": "The second OK: check the key, the URL and every chosen model against the API, then save\nthem together and switch answers and embeddings to this API.",
+        "operationId": "save_connection_api_connection_put",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GeminiKey"
+                "$ref": "#/components/schemas/ConnectionSave"
               }
             }
           },
@@ -725,7 +725,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ActionResult"
+                  "$ref": "#/components/schemas/SettingsSaved"
                 }
               }
             }
@@ -741,7 +741,9 @@
             }
           }
         }
-      },
+      }
+    },
+    "/api/gemini/key": {
       "delete": {
         "summary": "Delete Gemini Key",
         "operationId": "delete_gemini_key_api_gemini_key_delete",
@@ -1354,6 +1356,61 @@
         ],
         "title": "Confidence"
       },
+      "ConnectionSave": {
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "models_url": {
+            "type": "string",
+            "title": "Models Url"
+          },
+          "answer_model": {
+            "type": "string",
+            "title": "Answer Model"
+          },
+          "embedding_model": {
+            "type": "string",
+            "title": "Embedding Model"
+          },
+          "rewrite_model": {
+            "type": "string",
+            "title": "Rewrite Model",
+            "default": ""
+          },
+          "route_model": {
+            "type": "string",
+            "title": "Route Model",
+            "default": ""
+          },
+          "sql_model": {
+            "type": "string",
+            "title": "Sql Model",
+            "default": ""
+          },
+          "claim_model": {
+            "type": "string",
+            "title": "Claim Model",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "models_url",
+          "answer_model",
+          "embedding_model"
+        ],
+        "title": "ConnectionSave",
+        "description": "The second OK in Settings > AI models: the connection and a model for each task.\napi_key empty keeps the saved key. Task models may be \"\" (the answer model does it)."
+      },
       "DayCount": {
         "properties": {
           "date": {
@@ -1900,19 +1957,6 @@
         ],
         "title": "GeminiInfo"
       },
-      "GeminiKey": {
-        "properties": {
-          "api_key": {
-            "type": "string",
-            "title": "Api Key"
-          }
-        },
-        "type": "object",
-        "required": [
-          "api_key"
-        ],
-        "title": "GeminiKey"
-      },
       "GeminiModel": {
         "properties": {
           "name": {
@@ -1928,7 +1972,14 @@
             "title": "Kind"
           },
           "free_tier": {
-            "type": "boolean",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Free Tier"
           },
           "input_token_limit": {
@@ -1958,8 +2009,7 @@
         "required": [
           "name",
           "display_name",
-          "kind",
-          "free_tier"
+          "kind"
         ],
         "title": "GeminiModel"
       },
@@ -2012,11 +2062,22 @@
               }
             ],
             "title": "Api Key"
+          },
+          "models_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Models Url"
           }
         },
         "type": "object",
         "title": "GeminiModelsRequest",
-        "description": "Leave api_key empty to use the saved key."
+        "description": "Leave api_key empty to use the saved key, models_url empty to use the saved URL."
       },
       "HTTPValidationError": {
         "properties": {

@@ -49,17 +49,21 @@ Then follow `docs/claude-code-guide.md`, starting with `/milestone 1`.
 
 ## Gemini API or local models (Settings > AI models)
 
-By default answers and embeddings come from the Google Gemini API (`provider.use_local_models:
-false` in `config.yaml`). Open Settings > AI models, paste an API key from
-aistudio.google.com/api-keys and click Save key: Evidex checks it with Google, saves it in `.env`
-as `EVIDEX_GEMINI_API_KEY` (never in `config.yaml`, never shown again), and lists every model that
-key can use, marked free tier or paid only. While `gemini.free_tier_only` is true, only models in
-`gemini.free_tier_models` (taken from Google's pricing page) can be picked; paid-only ones are
-greyed out and refused on save. Pick the answer and embedding models, and optionally a different
-model for follow-up rewriting, question routing, SQL writing or the claim check, then Save.
+By default answers and embeddings come from an API connection (`provider.use_local_models: false`),
+set up in Settings > AI models in two steps:
 
-Settings is the only place models are chosen: the Chat page shows the answer model in use and
-links to Settings.
+1. **Connect:** enter the API key and the models URL (Google Gemini:
+   `https://generativelanguage.googleapis.com/v1beta/models`; any OpenAI-style service: its
+   `.../v1/models`), then click **OK**. Evidex lists every model that key can use.
+2. **Choose a model for each task:** answer and embedding models, and optionally separate models
+   for follow-up rewriting, question routing, SQL writing and the claim check. Click **OK**: the
+   key and every model are checked with the API, the key is saved in `.env` as
+   `EVIDEX_GEMINI_API_KEY` (never in `config.yaml`, never shown again), and the URL and models in
+   `config.yaml`. Then upload your documents and ask.
+
+For Google's API, each model is marked free tier or paid only; while `gemini.free_tier_only` is true,
+only models in `gemini.free_tier_models` (from Google's pricing page) can be picked. Settings is the
+only place models are chosen: the Chat page shows the answer model in use and links to Settings.
 
 - The free tier applies only when the key's Google Cloud project has no billing account. With
   billing on, Google charges for every request, whichever model you pick.

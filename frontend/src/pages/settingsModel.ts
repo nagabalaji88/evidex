@@ -9,7 +9,7 @@ export type Field =
 export const LOCAL_TOGGLE = "provider.use_local_models";
 export const PROVIDER_FIELDS: Field[] = [
   { key: LOCAL_TOGGLE, label: "Use local models", kind: "switch",
-    help: "Off: Google Gemini API, free tier. On: models on this computer (Ollama, or the server set in .env)." },
+    help: "Off: the API connection below (Google Gemini by default). On: models on this computer (Ollama, or the server set in .env)." },
   { key: "gemini.answer_model", label: "Answer model", kind: "select", options: [],
     help: "Writes the answers, and every task below left on \"Same as the answer model\"." },
   { key: "gemini.embedding_model", label: "Embedding model", kind: "select", options: [],

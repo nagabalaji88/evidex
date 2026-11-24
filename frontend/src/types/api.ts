@@ -313,11 +313,32 @@ export interface paths {
         put?: never;
         /**
          * Gemini Models
-         * @description Every answer and embedding model this API key can use, each marked free tier or not.
-         *     With gemini.free_tier_only (the default) the page greys out the paid-only ones, and
-         *     saving one is refused.
+         * @description The first OK: every answer and embedding model the API key can use at the models URL
+         *     (empty fields: the saved key and URL). For Google's API each is marked free tier or
+         *     not; with gemini.free_tier_only (the default) paid-only ones are greyed out and refused.
          */
         post: operations["gemini_models_api_gemini_models_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save Connection
+         * @description The second OK: check the key, the URL and every chosen model against the API, then save
+         *     them together and switch answers and embeddings to this API.
+         */
+        put: operations["save_connection_api_connection_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -332,12 +353,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /**
-         * Save Gemini Key
-         * @description Check the key against the Gemini API, then save it in .env (git-ignored). The key is
-         *     never written to config.yaml and never returned by the API.
-         */
-        put: operations["save_gemini_key_api_gemini_key_put"];
+        put?: never;
         post?: never;
         /** Delete Gemini Key */
         delete: operations["delete_gemini_key_api_gemini_key_delete"];
@@ -563,6 +579,41 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /**
+         * ConnectionSave
+         * @description The second OK in Settings > AI models: the connection and a model for each task.
+         *     api_key empty keeps the saved key. Task models may be "" (the answer model does it).
+         */
+        ConnectionSave: {
+            /** Api Key */
+            api_key?: string | null;
+            /** Models Url */
+            models_url: string;
+            /** Answer Model */
+            answer_model: string;
+            /** Embedding Model */
+            embedding_model: string;
+            /**
+             * Rewrite Model
+             * @default
+             */
+            rewrite_model: string;
+            /**
+             * Route Model
+             * @default
+             */
+            route_model: string;
+            /**
+             * Sql Model
+             * @default
+             */
+            sql_model: string;
+            /**
+             * Claim Model
+             * @default
+             */
+            claim_model: string;
+        };
         /** DayCount */
         DayCount: {
             /** Date */
@@ -786,11 +837,6 @@ export interface components {
             /** Api Key Source */
             api_key_source?: string | null;
         };
-        /** GeminiKey */
-        GeminiKey: {
-            /** Api Key */
-            api_key: string;
-        };
         /** GeminiModel */
         GeminiModel: {
             /** Name */
@@ -800,7 +846,7 @@ export interface components {
             /** Kind */
             kind: string;
             /** Free Tier */
-            free_tier: boolean;
+            free_tier?: boolean | null;
             /** Input Token Limit */
             input_token_limit?: number | null;
             /** Output Token Limit */
@@ -822,11 +868,13 @@ export interface components {
         };
         /**
          * GeminiModelsRequest
-         * @description Leave api_key empty to use the saved key.
+         * @description Leave api_key empty to use the saved key, models_url empty to use the saved URL.
          */
         GeminiModelsRequest: {
             /** Api Key */
             api_key?: string | null;
+            /** Models Url */
+            models_url?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1882,7 +1930,7 @@ export interface operations {
             };
         };
     };
-    save_gemini_key_api_gemini_key_put: {
+    save_connection_api_connection_put: {
         parameters: {
             query?: never;
             header?: never;
@@ -1891,7 +1939,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GeminiKey"];
+                "application/json": components["schemas"]["ConnectionSave"];
             };
         };
         responses: {
@@ -1901,7 +1949,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ActionResult"];
+                    "application/json": components["schemas"]["SettingsSaved"];
                 };
             };
             /** @description Validation Error */

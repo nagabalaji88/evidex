@@ -1,10 +1,11 @@
 provider:
-  use_local_models: false   # Settings toggle. false: Google Gemini API (models below). true: local models (Ollama or a .env server)
+  use_local_models: false   # Settings toggle. false: the API connection below. true: local models (Ollama or a .env server)
 
 gemini:
-  # Chat and embeddings use Gemini's OpenAI-compatible endpoint; the model list uses the native API.
+  # The API connection, set in Settings > AI models: the key (in .env) and models_url, then a model per task.
+  # Google: chat and embeddings use its OpenAI-compatible base_url. Any other service: models_url minus /models.
   base_url: https://generativelanguage.googleapis.com/v1beta/openai
-  models_url: https://generativelanguage.googleapis.com/v1beta/models
+  models_url: https://generativelanguage.googleapis.com/v1beta/models   # lists the models the key can use
   answer_model: gemini-3.5-flash-lite
   embedding_model: gemini-embedding-001
   # Models for specific tasks; empty means the answer model does it.

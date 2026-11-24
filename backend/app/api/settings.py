@@ -11,19 +11,21 @@ import re
 import psutil
 from fastapi import APIRouter, HTTPException, Request
 
-from ..config import Config, ConfigError, config_path, get_config, load_config, parse_config
+from ..config import (Config, ConfigError, clean_api_url, config_path, get_config, is_google_url, load_config,
+                      parse_config)
 from ..config_writer import set_value
 from ..env import GEMINI_KEY_VARS, EnvError, env_file_path, parse_env_text, set_env_value
 from ..gemini_client import list_gemini_models
 from ..llm import client_for
 from ..ollama_client import OllamaError
-from ..schemas import (ActionResult, GeminiInfo, GeminiKey, GeminiModel, GeminiModelList, GeminiModelsRequest, ModelInfo,
-                       ModelList, SettingsResponse, SettingsSaved, SettingsUpdate)
+from ..schemas import (ActionResult, ConnectionSave, GeminiInfo, GeminiModel, GeminiModelList, GeminiModelsRequest,
+                       ModelInfo, ModelList, SettingsResponse, SettingsSaved, SettingsUpdate)
 
 router = APIRouter(prefix="/api")
 
 # Spec section 8 (Settings): these changes show "Re-run the evaluation after saving".
-RERUN_KEYS = {"provider.use_local_models", "gemini.answer_model", "gemini.embedding_model",
+RERUN_KEYS = {"provider.use_local_models", "gemini.models_url", "gemini.answer_model", "gemini.embedding_model",
+              "gemini.rewrite_model", "gemini.route_model", "gemini.sql_model", "gemini.claim_model",
               "models.answer", "models.embedding", "reranker.enabled", "reranker.model", "retrieval.relevance_threshold",
               "retrieval.vector_threshold", "retrieval.final_k", "ingestion.chunk_size_tokens",
               "ingestion.chunk_overlap_tokens", "ollama.num_ctx"}
@@ -182,51 +184,116 @@ async def models(request: Request) -> ModelList:
     return ModelList(models=out, default=local.answer)
 
 
-# -- Gemini API --------------------------------------------------------------------------------
+# -- API connection (Settings > AI models) -----------------------------------------------------
+# 1. The page sends the API key and the models URL: POST /api/gemini/models lists the models.
+# 2. The user picks a model for each task and clicks OK: PUT /api/connection checks and saves
+#    everything at once (the key in .env, the rest in config.yaml) and switches to the API.
 
-# Google's keys are letters, digits, - and _ ("AIza..."); this only stops obvious mistakes
-# (spaces, quotes, a pasted line break) before the key is checked against the API.
-_KEY_RE = re.compile(r"[A-Za-z0-9_\-.]{20,200}")
+# Keys are letters, digits, - _ and . (Google "AIza...", OpenAI-style "sk-..."). This only stops
+# obvious mistakes (spaces, quotes, a pasted line break); the API itself checks the key.
+_KEY_RE = re.compile(r"[A-Za-z0-9_\-.]{8,500}")
+_TASK_KEYS = ("rewrite_model", "route_model", "sql_model", "claim_model")
+
+
+def _saved_key() -> str:
+    return next((os.environ[n] for n in GEMINI_KEY_VARS if (os.environ.get(n) or "").strip()), "").strip()
+
+
+def _url(raw: str | None, default: str) -> str:
+    try:
+        return clean_api_url(raw or default)
+    except ValueError as exc:
+        raise HTTPException(422, f"Models URL: {exc}") from exc
+
+
+def _key(raw: str | None) -> str:
+    key = (raw or "").strip()
+    if key and not _KEY_RE.fullmatch(key):
+        raise HTTPException(422, "That does not look like an API key (no spaces or quotes). Paste it again.")
+    return key or _saved_key()
 
 
 @router.post("/gemini/models", response_model=GeminiModelList)
 async def gemini_models(body: GeminiModelsRequest, request: Request) -> GeminiModelList:
-    """Every answer and embedding model this API key can use, each marked free tier or not.
-    With gemini.free_tier_only (the default) the page greys out the paid-only ones, and
-    saving one is refused."""
+    """The first OK: every answer and embedding model the API key can use at the models URL
+    (empty fields: the saved key and URL). For Google's API each is marked free tier or
+    not; with gemini.free_tier_only (the default) paid-only ones are greyed out and refused."""
     s = request.app.state
     g = s.config.gemini
-    key = (body.api_key or "").strip()
-    if not key:
-        saved = next((os.environ[n] for n in GEMINI_KEY_VARS if (os.environ.get(n) or "").strip()), "")
-        key = saved.strip()
     try:
-        found = await list_gemini_models(s.config, key, s.ollama_transport)
+        url = _url(body.models_url, g.models_url)
+        key = _key(body.api_key)
+    except HTTPException as exc:
+        return GeminiModelList(models=[], free_tier_only=g.free_tier_only, error=str(exc.detail))
+    free_only = g.free_tier_only and is_google_url(url)
+    try:
+        found = await list_gemini_models(s.config, key, s.ollama_transport, models_url=url)
     except OllamaError as exc:
-        return GeminiModelList(models=[], free_tier_only=g.free_tier_only, error=str(exc))
-    found.sort(key=lambda m: (m["kind"] != "answer", not m["free_tier"], m["name"]))
+        return GeminiModelList(models=[], free_tier_only=free_only, error=str(exc))
+    found.sort(key=lambda m: (m["kind"] != "answer", m["free_tier"] is False, m["name"]))
     return GeminiModelList(models=[GeminiModel(**{k: m[k] for k in GeminiModel.model_fields}) for m in found],
-                           free_tier_only=g.free_tier_only, paid_only=sum(not m["free_tier"] for m in found))
+                           free_tier_only=free_only, paid_only=sum(m["free_tier"] is False for m in found))
 
 
-@router.put("/gemini/key", response_model=ActionResult)
-async def save_gemini_key(body: GeminiKey, request: Request) -> ActionResult:
-    """Check the key against the Gemini API, then save it in .env (git-ignored). The key is
-    never written to config.yaml and never returned by the API."""
+@router.put("/connection", response_model=SettingsSaved)
+async def save_connection(body: ConnectionSave, request: Request) -> SettingsSaved:
+    """The second OK: check the key, the URL and every chosen model against the API, then save
+    them together and switch answers and embeddings to this API."""
     s = request.app.state
-    key = body.api_key.strip()
-    if not _KEY_RE.fullmatch(key):
-        raise HTTPException(422, "That does not look like a Gemini API key. Copy it from aistudio.google.com/api-keys.")
+    g = s.config.gemini
+    url = _url(body.models_url, g.models_url)
+    new_key = (body.api_key or "").strip()
+    key = _key(new_key)
     try:
-        await list_gemini_models(s.config, key, s.ollama_transport)
+        found = await list_gemini_models(s.config, key, s.ollama_transport, models_url=url)
     except OllamaError as exc:
         raise HTTPException(422, f"Not saved: {exc}") from exc
+    kinds = {m["name"]: m["kind"] for m in found}
+    picks = {"answer_model": body.answer_model.strip(), "embedding_model": body.embedding_model.strip(),
+             **{k: getattr(body, k).strip() for k in _TASK_KEYS}}
+    for field, name in picks.items():
+        want = "embedding" if field == "embedding_model" else "answer"
+        if not name and field in _TASK_KEYS:
+            continue  # the answer model does this task
+        if kinds.get(name) != want:
+            label = field.removesuffix("_model").replace("_", " ")
+            raise HTTPException(422, f"Not saved: pick the {label} model from the list"
+                                     + (f" ('{name}' is not an {want} model offered to this key)." if name else "."))
+    changes = {"provider.use_local_models": False, "gemini.models_url": url,
+               **{f"gemini.{k}": v for k, v in picks.items()}}
+    current = _config_dict(s.config)
+    data = {k: dict(v) if isinstance(v, dict) else v for k, v in current.items()}
+    changed = []
+    for dotted, value in changes.items():
+        section, _, k = dotted.partition(".")
+        if data[section][k] != value:
+            data[section][k] = value
+            changed.append(dotted)
     try:
-        path = set_env_value(GEMINI_KEY_VARS[0], key)
-    except (EnvError, OSError) as exc:
-        raise HTTPException(500, f"Could not write the .env file: {exc}") from exc
-    _reload(request)
-    return ActionResult(ok=True, message=f"API key checked and saved in {path.name}.")
+        parse_config(data, base_dir=s.config.base_dir)  # e.g. refuses a paid-only Google model
+    except ConfigError as exc:
+        raise HTTPException(422, f"Not saved: {exc}") from exc
+    if new_key:
+        try:
+            set_env_value(GEMINI_KEY_VARS[0], new_key)
+        except (EnvError, OSError) as exc:
+            raise HTTPException(500, f"Could not write the .env file: {exc}") from exc
+    old = s.config
+    if changed:
+        p = _path(request)
+        text = p.read_text(encoding="utf-8")
+        for dotted in changed:
+            section, _, k = dotted.partition(".")
+            text = set_value(text, section, k, data[section][k])
+        p.write_text(text, encoding="utf-8")
+    new_cfg = _reload(request)
+    reindex = _embedding(old) != _embedding(new_cfg)
+    rerun = any(k in RERUN_KEYS for k in changed)
+    msg = "Connected" + (" and the API key saved in .env" if new_key else "") + ". Models saved to config.yaml."
+    if reindex:
+        msg += " Re-index the documents: the embedding model changed."
+    return SettingsSaved(saved=True, changed=changed, rerun_evaluation=rerun, reindex_required=reindex, message=msg,
+                         config=_config_dict(new_cfg))
 
 
 @router.delete("/gemini/key", response_model=ActionResult)

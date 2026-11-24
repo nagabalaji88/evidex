@@ -438,28 +438,39 @@ class GeminiInfo(BaseModel):
     api_key_source: str | None = None  # ".env" or the environment variable's name; never the key
 
 
-class GeminiKey(BaseModel):
-    api_key: str
-
-
 class GeminiModelsRequest(BaseModel):
-    """Leave api_key empty to use the saved key."""
+    """Leave api_key empty to use the saved key, models_url empty to use the saved URL."""
 
     api_key: str | None = None
+    models_url: str | None = None
+
+
+class ConnectionSave(BaseModel):
+    """The second OK in Settings > AI models: the connection and a model for each task.
+    api_key empty keeps the saved key. Task models may be "" (the answer model does it)."""
+
+    api_key: str | None = None
+    models_url: str
+    answer_model: str
+    embedding_model: str
+    rewrite_model: str = ""
+    route_model: str = ""
+    sql_model: str = ""
+    claim_model: str = ""
 
 
 class GeminiModel(BaseModel):
     name: str
     display_name: str
     kind: str  # "answer" or "embedding"
-    free_tier: bool
+    free_tier: bool | None = None  # None: unknown (not Google's API)
     input_token_limit: int | None = None
     output_token_limit: int | None = None
 
 
 class GeminiModelList(BaseModel):
     models: list[GeminiModel]
-    free_tier_only: bool  # true: paid-only models are listed but cannot be picked
+    free_tier_only: bool  # true (and Google's API): paid-only models are listed but cannot be picked
     paid_only: int = 0  # how many listed models have no free tier
     error: str | None = None
 
